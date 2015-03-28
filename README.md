@@ -11,6 +11,8 @@ tells you tcpreplay speed required to respect packet timestamps; etc.
 
 
 # Command line help
+
+<tt>
 large-pcap-analyzer [-o dumpfile.pcap] [-f filter] [-s string] [-h] somefile.pcap ...
 by Francesco Montorsi, (c) Nov 2014
 version 3.1
@@ -21,12 +23,14 @@ Help:
 -f <pcap-filter>     the PCAP filter to use to produce the dumpfile, see http://www.manpagez.com/man/7/pcap-filter/
 -s <search-string>   an additional filter for packet payloads
 somefile.pcap        the large PCAP to analyze (you can provide more than 1 file)
+</tt>
 
 
 # Example run 1
 
 In this example we are interested in understanding how many seconds of traffic are contained in a PCAP file:
 
+<tt>
 $ ./large-pcap-analyzer large.pcap 
 
 Analyzing PCAP file 'large.pcap'...
@@ -38,12 +42,14 @@ Last packet has a timestamp offset = 38.03sec = 0.63min = 0.01hours
 Bytes loaded from PCAP = 941293kiB = 919MiB; total bytes on wire = 941293kiB = 919MiB
   => the whole traffic has been captured in this PCAP!
 Tcpreplay should replay this PCAP at an average of 193.34Mbps / 22205.13pps to respect PCAP timings!
+</tt>
 
 
 # Example run 2
 
 In this example we are interested in selecting any packet that may contain inside it the string "youtube":
 
+<tt>
 $ ./large-pcap-analyzer -s "youtube" -o out.pcap large2.pcap 
 
 Analyzing PCAP file 'large2.pcap'...
@@ -61,12 +67,14 @@ Last packet has a timestamp offset = 109.14sec = 1.82min = 0.03hours
 Bytes loaded from PCAP = 1985713kiB = 1939MiB; total bytes on wire = 1985713kiB = 1939MiB
   => the whole traffic has been captured in this PCAP!
 Tcpreplay should replay this PCAP at an average of 142.14Mbps / 36526.14pps to respect PCAP timings!
+</tt>
 
 
 # Example run 3
 
 In this example we are interested in selecting packets having a VLAN tag and directed or coming from an HTTP server:
 
+<tt>
 $ ./large-pcap-analyzer -f 'vlan and tcp port 80' -o out.pcap large3.pcap
 
 Analyzing PCAP file 'large3.pcap'...
@@ -80,5 +88,5 @@ Last packet has a timestamp offset = 109.14sec = 1.82min = 0.03hours
 Bytes loaded from PCAP = 629328kiB = 614MiB; total bytes on wire = 629328kiB = 614MiB
   => the whole traffic has been captured in this PCAP!
 Tcpreplay should replay this PCAP at an average of 45.04Mbps / 7934.63pps to respect PCAP timings!
-
+</tt>
 
