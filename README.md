@@ -7,9 +7,10 @@ Currently it builds and works on Linux but actually nothing prevents it from run
 It is based over the well-known libpcap.
 
 Some features of this utility: 
-0. extract packets matching a simple BPF filter; 
-0. extract packets matching plain text;
-0. tells you the tcpreplay speed required to respect packet timestamps; 
+
+0. Extract packets matching a simple BPF filter;.
+0. Extract packets matching plain text.
+0. Tells you the tcpreplay speed required to respect packet timestamps;.
 
 
 # Command line help
