@@ -8,15 +8,15 @@ It is based over the well-known libpcap.
 
 Some features of this utility: 
 
-0. Extract packets matching a simple BPF filter;.
+0. Extract packets matching a simple BPF filter.
 0. Extract packets matching plain text.
-0. Tells you the tcpreplay speed required to respect packet timestamps;.
+0. Tells you the tcpreplay speed required to respect packet timestamps.
 
 
 # Command line help
 
 <tt>
-    large-pcap-analyzer [-o dumpfile.pcap] [-f filter] [-s string] [-h] somefile.pcap ...
+    large-pcap-analyzer [-o dumpfile.pcap] [-f filter] [-s string] [-h] somefile.pcap [other pcap files]
     by Francesco Montorsi, (c) Nov 2014
     version 3.1
 
@@ -47,6 +47,9 @@ In this example we are interested in understanding how many seconds of traffic a
     Tcpreplay should replay this PCAP at an average of 193.34Mbps / 22205.13pps to respect PCAP timings!
 </tt>
 
+Note that to load a 2GB PCAP only 5secs were required (on a 3GHz Intel Xeon CPU).
+RAM memory consumption was about 4MB.
+
 
 # Example run 2
 
@@ -72,6 +75,9 @@ In this example we are interested in selecting any packet that may contain insid
     Tcpreplay should replay this PCAP at an average of 142.14Mbps / 36526.14pps to respect PCAP timings!
 </tt>
 
+Note that to load, search and extract packets from a 2GB PCAP only 10secs were required (on a 3GHz Intel Xeon CPU).
+RAM memory consumption was about 4MB.
+
 
 # Example run 3
 
@@ -92,4 +98,8 @@ In this example we are interested in selecting packets having a VLAN tag and dir
       => the whole traffic has been captured in this PCAP!
     Tcpreplay should replay this PCAP at an average of 45.04Mbps / 7934.63pps to respect PCAP timings!
 </tt>
+
+Note that to load, search and extract packets from a 2GB PCAP only 1sec was required (on a 3GHz Intel Xeon CPU).
+RAM memory consumption was about 4MB.
+
 
