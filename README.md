@@ -15,7 +15,7 @@ Some features of this utility:
 
 # Command line help
 
-<tt>
+```
     large-pcap-analyzer [-o dumpfile.pcap] [-f filter] [-s string] [-h] somefile.pcap [other pcap files]
     by Francesco Montorsi, (c) Nov 2014
     version 3.1
@@ -26,8 +26,7 @@ Some features of this utility:
     -f <pcap-filter>     the PCAP filter to use to produce the dumpfile, see http://www.manpagez.com/man/7/pcap-filter/
     -s <search-string>   an additional filter for packet payloads
     somefile.pcap        the large PCAP to analyze (you can provide more than 1 file)
-</tt>
-
+```
 
 # Example run 1
 
