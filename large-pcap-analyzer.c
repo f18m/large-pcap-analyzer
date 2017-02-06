@@ -290,7 +290,7 @@ boolean apply_filter_on_inner_ipv4_frame(struct pcap_pkthdr* pcap_header, const 
 	// create also a fake
 	struct pcap_pkthdr fakehdr;
 	memcpy(&fakehdr.ts, &pcap_header->ts, sizeof(pcap_header->ts));
-	fakehdr.caplen = fakehdr.len = inner_ipv4_len;
+	fakehdr.caplen = fakehdr.len = sizeof(struct ether_header) + inner_ipv4_len;
 
 	// pcap_offline_filter returns
 	// zero if the packet doesn't match the filter and non-zero
