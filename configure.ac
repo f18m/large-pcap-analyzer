@@ -1,10 +1,13 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.69])
-AC_INIT([large-pcap-analyzer], [0.2], [francesco.montorsi@gmail.com])
+AC_INIT([large-pcap-analyzer], [3.2], [francesco.montorsi@gmail.com])
 AC_CONFIG_SRCDIR([large-pcap-analyzer.c])
 AC_CONFIG_HEADERS([config.h])
 AM_INIT_AUTOMAKE
+
+# do not get the -g -O2 default CFLAGS:
+: ${CFLAGS=""}
 
 # Checks for programs.
 AC_PROG_CC
@@ -12,10 +15,10 @@ AC_PROG_INSTALL
 AC_PROG_MAKE_SET
 
 # Checks for libraries.
-AC_CHECK_LIB([pcap], [pcap_open_live])
+AC_CHECK_LIB([pcap], [pcap_open_live], [], [echo "PCAP library not found. Aborting." ; exit 1])
 
 # Checks for header files.
-AC_CHECK_HEADERS([stdlib.h string.h sys/time.h unistd.h])
+#AC_CHECK_HEADERS([stdlib.h string.h sys/time.h unistd.h])
 
 # Checks for typedefs, structures, and compiler characteristics.
 
