@@ -48,6 +48,7 @@
 #include <pcap/pcap.h>
 #include <sys/stat.h>
 #include <assert.h>
+#include <stdarg.h>
 
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -87,6 +88,18 @@
 #endif  /*MIN*/
 
 
+// stuff coming from http://lxr.free-electrons.com/source/include/net/gtp.h
+
+/* General GTP protocol related definitions. */
+#define GTP1U_PORT      2152
+#define GTP_TPDU        255
+#define GTP1_F_NPDU     0x01
+#define GTP1_F_SEQ      0x02
+#define GTP1_F_EXTHDR   0x04
+#define GTP1_F_MASK     0x07
+
+
+
 //------------------------------------------------------------------------------
 // Types
 //------------------------------------------------------------------------------
@@ -101,12 +114,22 @@ typedef int   boolean;
     #define FALSE       0
 #endif
 
+typedef enum
+{
+	GPRC_VALID_GTPU_PKT = 0,
+
+	GPRC_NOT_GTPU_PKT = -1,
+	GPRC_TOO_SHORT_PKT = -2,
+	GPRC_INVALID_PKT = -3,
+} GtpuParserRetCode;
+
+typedef struct
+{
+	uint16_t vlanId;			// in NETWORK order
+	uint16_t protoType;
+} __attribute__((packed)) Ether80211q;
 
 // stuff coming from http://lxr.free-electrons.com/source/include/net/gtp.h
-
-/* General GTP protocol related definitions. */
-#define GTP1U_PORT      2152
-#define GTP_TPDU        255
 
 struct gtp1_header {    /* According to 3GPP TS 29.060. */
         __u8    flags;
@@ -115,17 +138,13 @@ struct gtp1_header {    /* According to 3GPP TS 29.060. */
         __be32  tid;
 } __attribute__ ((packed));
 
-#define GTP1_F_NPDU     0x01
-#define GTP1_F_SEQ      0x02
-#define GTP1_F_EXTHDR   0x04
-#define GTP1_F_MASK     0x07
-
 
 //------------------------------------------------------------------------------
 // Globals
 //------------------------------------------------------------------------------
 
 u_char g_buffer[MAX_SNAPLEN];
+boolean g_verbose = FALSE;
 
 
 //------------------------------------------------------------------------------
@@ -139,6 +158,7 @@ void print_help()
     printf("version %s\n\n", PACKAGE_VERSION);
     printf("Help:\n");
     printf(" -h                    this help\n");
+    printf(" -v                    be verbose\n");
     printf(" -a                    open output file in APPEND mode instead of TRUNCATE\n");
     printf(" -w <outfile.pcap>     where to save the PCAP containing the results of filtering\n");
     printf(" -Y <pcap-filter>      the PCAP filter to apply when READING the pcap\n");
@@ -150,26 +170,40 @@ void print_help()
     exit(0);
 }
 
-
-typedef struct
+void printf_verbose(const char *fmtstr, ...)
 {
-	uint16_t vlanId;			// in NETWORK order; use ntohs() and then mask this field with VLAN_VID_MASK to extract the [0-4095] VLAN ID only, without PCP and DEI
-	uint16_t protoType;
-} __attribute__((packed)) Ether80211q;
+	va_list args;
+	va_start(args, fmtstr);
+
+	if (g_verbose)
+		vprintf(fmtstr, args);
+
+	va_end(args);
+}
 
 
-int get_gtpu_inner_frame_offset(struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet)
+GtpuParserRetCode get_gtpu_inner_frame_offset(struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet, int* offsetOut)
 {
 	unsigned int offset = 0;
-	if(pcap_header->len < sizeof(struct ether_header))
-		return -1; /* Packet too short */
+#ifdef DEBUG
+	unsigned int offset_ethernet=0, offset_ipv4=0, offset_udp=0;
+#endif
 
-	// skip ethernet
+
+	// parse Ethernet layer
+
+	if(pcap_header->len < sizeof(struct ether_header))
+		return GPRC_TOO_SHORT_PKT; // Packet too short
+
 	const struct ether_header* ehdr = (const struct ether_header*)pcap_packet;
 	uint16_t eth_type = ntohs(ehdr->ether_type);
 	offset = sizeof(struct ether_header);
+#ifdef DEBUG
+	offset_ethernet=offset;
+#endif
 
-	// skip VLAN tags
+	// parse VLAN tags
+
 	while (ETHERTYPE_IS_VLAN(eth_type) && offset < pcap_header->len)
 	{
 		const Ether80211q* qType = (const Ether80211q*) (pcap_packet + offset);
@@ -178,66 +212,70 @@ int get_gtpu_inner_frame_offset(struct pcap_pkthdr* pcap_header, const u_char* c
 	}
 
 	if (eth_type != ETH_P_IP)
-		return -3;		// not a GTPu packet
+		return GPRC_NOT_GTPU_PKT;		// not a GTPu packet
 
-	// skip IPv4
-	const u_int8_t *payload = (const u_int8_t *)(pcap_packet + offset);
-	u_int8_t version = (*(payload)) & 0xF0;
-	if ( version != 0x40 )
-		return -2;		// wrong packet
+
+	// parse IPv4 layer
+	// NOTE: for the encapsulation, only IPv4 is supported; IPv6 is never used for encapsulation anyway!
+
+	if (pcap_header->len < (offset + sizeof(struct ip)) )
+		return GPRC_TOO_SHORT_PKT;		// Packet too short
 
 	const struct ip* ip = (const struct ip*) (pcap_packet + offset);
-	if (pcap_header->len < (offset + sizeof(struct ip)) )
-		return -1;		/* Packet too short */
+	if ( ip->ip_v != 4 )
+		return GPRC_INVALID_PKT;		// wrong packet
 
 	if(ip->ip_p != IPPROTO_UDP)
-		return -3;		// not a GTPu packet
+		return GPRC_NOT_GTPU_PKT;		// not a GTPu packet
 
 	size_t hlen = (u_int) ip->ip_hl * 4;
 	offset += hlen;
+#ifdef DEBUG
+	offset_ipv4=offset;
+#endif
 
 
-	// skip UDP
+	// parse UDP layer
 
 	if (pcap_header->len < (offset + sizeof(struct udphdr)) )
-		return -1;		/* Packet too short */
+		return GPRC_TOO_SHORT_PKT;		// Packet too short
 
 	const struct udphdr* udp = (const struct udphdr*)(pcap_packet + offset);
 	if (udp->source != htons(GTP1U_PORT) &&
 			udp->dest != htons(GTP1U_PORT))
-		return -3;		// not a GTPu packet
+		return GPRC_NOT_GTPU_PKT;		// not a GTPu packet
 
 	offset += sizeof(struct udphdr);
+#ifdef DEBUG
+	offset_udp=offset;
+#endif
 
 
-	// skip GTPu
+	// parse GTPu layer
 
 	if (pcap_header->len < (offset + sizeof(struct gtp1_header)) )
-		return -1;		/* Packet too short */
+		return GPRC_TOO_SHORT_PKT;		// Packet too short
 
 	const struct gtp1_header* gtpu = (const struct gtp1_header*)(pcap_packet + offset);
 
 	//check for gtp-u message (type = 0xff) and is a gtp release 1
 	if ((gtpu->flags & 0xf0) != 0x30)
-		return -3;		// not a GTPu packet
+		return GPRC_NOT_GTPU_PKT;		// not a GTPu packet
 	if (gtpu->type != GTP_TPDU)
-		return -3;		// not a GTPu packet
-
+		return GPRC_NOT_GTPU_PKT;		// not a GTPu packet
 
 	offset += sizeof(struct gtp1_header);
 	const u_char* gtp_start = pcap_packet + offset;
 	const u_char* gtp_payload = pcap_packet + offset;
 
-	//check for sequence number and NPDU
-	if ((gtpu->flags & GTP1_F_MASK) != 0)
-	{
-		//4 more bytes
+	// check for sequence number field and NPDU field
+	if ((gtpu->flags & (GTP1_F_NPDU | GTP1_F_SEQ)) != 0)
 		offset += 4;
-	}
 
-	//get the extension bit
+	// parse the extension bit
 	if ((gtpu->flags & GTP1_F_EXTHDR) != 0)
 	{
+		// skip all extensions present
 		uint16_t ext_type;
 		do
 		{
@@ -267,7 +305,22 @@ int get_gtpu_inner_frame_offset(struct pcap_pkthdr* pcap_header, const u_char* c
 
 	offset += (gtp_payload - gtp_start);
 
-	return offset;
+	// check that a valid IPv4 layer is following
+
+	if (pcap_header->len < (offset + sizeof(struct ip)) )
+		return GPRC_TOO_SHORT_PKT;		// Packet too short
+
+	const struct ip* ipinner = (const struct ip*) (pcap_packet + offset);
+	if ( ipinner->ip_v != 4 && ipinner->ip_v != 6 )
+		return GPRC_INVALID_PKT;		// wrong packet or above GTPu there is no IP layer (it could be e.g., PPP or other)
+
+
+	// ok, found the offset for a valid GTPu packet
+
+	if (offsetOut)
+		*offsetOut = offset;
+
+	return GPRC_VALID_GTPU_PKT;
 }
 
 boolean apply_filter_on_inner_ipv4_frame(struct pcap_pkthdr* pcap_header, const u_char* pcap_packet,
@@ -305,52 +358,51 @@ boolean apply_filter_on_inner_ipv4_frame(struct pcap_pkthdr* pcap_header, const 
 }
 
 boolean must_be_saved(struct pcap_pkthdr* pcap_header, const u_char* pcap_packet,
-					  const char *search, struct bpf_program* gtpu_filter)
+					  const char *search, struct bpf_program* gtpu_filter, boolean* is_gtpu)
 {
 	boolean tosave = FALSE;
 
+	// string-search filter:
+
+	if (search)
+	{
+		unsigned int len = MIN(pcap_header->len, MAX_PACKET_LEN);
+
+		memcpy(g_buffer, pcap_packet, len);
+		g_buffer[len] = '\0';
+
+		if (!memmem(g_buffer, len, search, strlen(search)))
+			tosave |= TRUE;
+	}
 
 
-    // string-search filter:
+	// GTPu filter:
 
-    if (search)
-    {
-        unsigned int len = MIN(pcap_header->len, MAX_PACKET_LEN);
-        char packet[MAX_PACKET_LEN + 1];
+	if (gtpu_filter)
+	{
+		// is this a GTPu packet?
+		int offset;
+		GtpuParserRetCode errcode = get_gtpu_inner_frame_offset(pcap_header, pcap_packet, &offset);
+		if (is_gtpu && errcode == GPRC_VALID_GTPU_PKT)
+			*is_gtpu = TRUE;
 
-        memcpy(packet, pcap_packet, len);
-        packet[len] = '\0';
-
-        if (!memmem(packet, len, search, strlen(search)))
-        	tosave |= TRUE;
-
-    }
-
-
-    // GTPu filter:
-
-    if (gtpu_filter)
-    {
-    	// is this a GTPu packet?
-    	int offset = get_gtpu_inner_frame_offset(pcap_header, pcap_packet);
-    	int len = pcap_header->len - offset;
-    	if (offset > 0 && len > 0)
-    	{
-    		tosave |= apply_filter_on_inner_ipv4_frame(pcap_header, pcap_packet,
-    				  	  	  	  	  	  	  	  	  offset, len, gtpu_filter);
-    	}
-    }
+		int len = pcap_header->len - offset;
+		if (offset > 0 && len > 0)
+		{
+			tosave |= apply_filter_on_inner_ipv4_frame(pcap_header, pcap_packet, offset, len, gtpu_filter);
+		}
+	}
 
 
-    return tosave;
+	return tosave;
 }
 
 boolean process_pcap_handle(pcap_t* pcap_handle_in,
 							struct bpf_program* gtpu_filter, const char *search,
-                            pcap_dumper_t* pcap_dumper, boolean pcapfilter_set,
-                            unsigned long* nloadedOUT, unsigned long* nmatchingOUT)
+							pcap_dumper_t* pcap_dumper, boolean pcapfilter_set,
+							unsigned long* nloadedOUT, unsigned long* nmatchingOUT)
 {
-    unsigned long nloaded = 0, nmatching = 0, nbytes_avail = 0, nbytes_orig = 0;
+    unsigned long nloaded = 0, nmatching = 0, ngtpu = 0, nbytes_avail = 0, nbytes_orig = 0;
     struct timeval start, stop;
     boolean first = TRUE;
 
@@ -364,18 +416,21 @@ boolean process_pcap_handle(pcap_t* pcap_handle_in,
     while (pcap_next_ex(pcap_handle_in, &pcap_header, &pcap_packet) > 0)
     {
         if ((nloaded % MILLION) == 0 && nloaded > 0)
-            printf("%luM packets loaded from PCAP%s...\n", nloaded/MILLION, pcapfilter_desc);
+        	printf_verbose("%luM packets loaded from PCAP%s...\n", nloaded/MILLION, pcapfilter_desc);
 
 
         // filter and save to output eventually
 
-        boolean tosave = must_be_saved(pcap_header, pcap_packet, search, gtpu_filter);
+        boolean is_gtpu = FALSE;
+        boolean tosave = must_be_saved(pcap_header, pcap_packet, search, gtpu_filter, &is_gtpu);
         if (tosave) {
             nmatching++;
 
             if (pcap_dumper)
                 pcap_dump((u_char *) pcap_dumper, pcap_header, pcap_packet);
         }
+        if (is_gtpu)
+        	ngtpu++;
 
 
         // save timestamps for later analysis:
@@ -395,10 +450,15 @@ boolean process_pcap_handle(pcap_t* pcap_handle_in,
     gettimeofday(&stop, NULL);
 
 
-    printf("Processing took %i seconds.\n",
+    printf_verbose("Processing took %i seconds.\n",
             (int) (stop.tv_sec - start.tv_sec));
-    printf("%luM packets (%lu packets) were loaded from PCAP%s.\n",
+    printf_verbose("%luM packets (%lu packets) were loaded from PCAP%s.\n",
             nloaded/MILLION, nloaded, pcapfilter_desc);
+
+    if (gtpu_filter)
+    	// in this case, the GTPu parser was run and we have a stat about how many packets are GTPu
+		printf_verbose("%luM packets (%lu packets) loaded from PCAP%s are GTPu packets (%.1f%%).\n",
+						ngtpu/MILLION, ngtpu, pcapfilter_desc, (double)(100.0*(double)(ngtpu)/(double)(nloaded)));
 
     if (search || gtpu_filter)
         printf("%lu packets matched the filtering criteria (search string / GTPu filter) and were saved into output PCAP.\n",
@@ -420,14 +480,14 @@ boolean process_pcap_handle(pcap_t* pcap_handle_in,
     }
     else
     {
-        printf("Last packet has a timestamp offset = %.2fsec = %.2fmin = %.2fhours\n",
+    	printf_verbose("Last packet has a timestamp offset = %.2fsec = %.2fmin = %.2fhours\n",
                 sec, sec/60.0, sec/3600.0);
     }
 
-    printf("Bytes loaded from PCAP = %lukiB = %luMiB; total bytes on wire = %lukiB = %luMiB\n",
+    printf_verbose("Bytes loaded from PCAP = %lukiB = %luMiB; total bytes on wire = %lukiB = %luMiB\n",
            nbytes_avail/KB, nbytes_avail/MB, nbytes_orig/KB, nbytes_orig/MB);
     if (nbytes_avail == nbytes_orig)
-        printf("  => the whole traffic has been captured in this PCAP!\n");
+    	printf_verbose("  => the whole traffic has been captured in this PCAP!\n");
 
     if (sec)
     {
@@ -583,11 +643,11 @@ boolean process_file(const char* infile, const char *outfile, boolean outfile_ap
         fprintf(stderr, "Couldn't open file: %s\n", pcap_errbuf);
         return FALSE;
     }
-    printf("Analyzing PCAP file '%s'...\n", infile);
+    printf_verbose("Analyzing PCAP file '%s'...\n", infile);
 
     if (st.st_size)
     {
-        printf("The PCAP file has size %.2fGiB = %luMiB.\n", (double)st.st_size/(double)GB, st.st_size/MB);
+    	printf_verbose("The PCAP file has size %.2fGiB = %luMiB.\n", (double)st.st_size/(double)GB, st.st_size/MB);
     }
 
 
@@ -679,8 +739,11 @@ int main(int argc, char **argv)
     char *pcap_gtpu_filter = NULL;
     char *search = NULL;
 
-    while ((opt = getopt(argc, argv, "aw:Y:G:s:h")) != -1) {
+    while ((opt = getopt(argc, argv, "vaw:Y:G:s:h")) != -1) {
         switch (opt) {
+        case 'v':
+			g_verbose = TRUE;
+			break;
         case 'a':
             append = TRUE;
             break;
@@ -757,8 +820,8 @@ int main(int argc, char **argv)
             printf("\n");
         }
 
-        printf("Total number of loaded packets: %lu\n", nloaded);
-        printf("Total number of matching packets: %lu\n", nmatching);
+        printf_verbose("Total number of loaded packets: %lu\n", nloaded);
+        printf_verbose("Total number of matching packets: %lu\n", nmatching);
     }
 
     return 0;

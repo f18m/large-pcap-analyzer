@@ -279,7 +279,7 @@ AUTOMAKE_OPTIONS = foreign
 large_pcap_analyzer_SOURCES = large-pcap-analyzer.c
 
 # useful for debug builds:
-#large_pcap_analyzer_CFLAGS = $(AM_CFLAGS) -Wall -Wextra -g -O0
+#large_pcap_analyzer_CFLAGS = $(AM_CFLAGS) -Wall -Wextra -g -O0 -DDEBUG
 
 # release builds:
 large_pcap_analyzer_CFLAGS = $(AM_CFLAGS) -Wall -Wextra -O3
