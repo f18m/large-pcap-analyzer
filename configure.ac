@@ -2,8 +2,8 @@
 
 AC_PREREQ([2.69])
 AC_INIT([large-pcap-analyzer], [3.2], [francesco.montorsi@gmail.com])
-AC_CONFIG_SRCDIR([large-pcap-analyzer.c])
-AC_CONFIG_HEADERS([config.h])
+AC_CONFIG_SRCDIR([src])
+AC_CONFIG_HEADERS([src/config.h])
 AM_INIT_AUTOMAKE
 
 # do not get the -g -O2 default CFLAGS:

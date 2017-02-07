@@ -36,110 +36,7 @@
 // Includes
 //------------------------------------------------------------------------------
 
-#define _GNU_SOURCE         // to have memmem
-
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/time.h>
-#include <ctype.h>
-#include <sys/stat.h>
-#include <assert.h>
-#include <stdarg.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <netinet/if_ether.h> /* includes net/ethernet.h */
-#include <netinet/ip.h> /* superset of previous */
-#include <linux/udp.h>
-
-// libpcap dependency:
-// NOTE: in version 1.7.x there is no pcap/pcap.h, just a pcap.h apparently:
-//#include <pcap/pcap.h>
-#include <pcap.h>
-
-#include "config.h"
-
-
-//------------------------------------------------------------------------------
-// Constants
-//------------------------------------------------------------------------------
-
-#define MAX_PACKET_LEN      4096
-#define KB                  1024
-#define MB                  (1024*1024)
-#define GB                  (1024*1024*1024)
-#define MILLION             (1000000)
-#define SMALL_NUM           (0.000001)           // 1us
-#define MAX_SNAPLEN         (65535)
-
-#define ETHERTYPE_IS_VLAN(x)			((x) == ETH_P_8021Q || (x) == 0x9100/*qinq*/ || (x) == 0x88A8 /*802.1 ad*/)
-#define VLAN_VID_MASK					(0x0FFF)
-
-
-#if !defined(PCAP_NETMASK_UNKNOWN)
-    /*
-     * Value to pass to pcap_compile() as the netmask if you don't know what
-     * the netmask is.
-     */
-    #define PCAP_NETMASK_UNKNOWN    0xffffffff
-#endif
-
-#ifndef MIN
-    #define MIN(x,y) ((x)>(y)?(y):(x))
-#endif  /*MIN*/
-
-
-// stuff coming from http://lxr.free-electrons.com/source/include/net/gtp.h
-
-/* General GTP protocol related definitions. */
-#define GTP1U_PORT      2152
-#define GTP_TPDU        255
-#define GTP1_F_NPDU     0x01
-#define GTP1_F_SEQ      0x02
-#define GTP1_F_EXTHDR   0x04
-#define GTP1_F_MASK     0x07
-
-
-
-//------------------------------------------------------------------------------
-// Types
-//------------------------------------------------------------------------------
-
-typedef int   boolean;
-
-#ifndef TRUE
-    #define TRUE        1
-#endif
-
-#ifndef FALSE
-    #define FALSE       0
-#endif
-
-typedef enum
-{
-	GPRC_VALID_GTPU_PKT = 0,
-
-	GPRC_NOT_GTPU_PKT = -1,
-	GPRC_TOO_SHORT_PKT = -2,
-	GPRC_INVALID_PKT = -3,
-} GtpuParserRetCode;
-
-typedef struct
-{
-	uint16_t vlanId;			// in NETWORK order
-	uint16_t protoType;
-} __attribute__((packed)) Ether80211q;
-
-// stuff coming from http://lxr.free-electrons.com/source/include/net/gtp.h
-
-struct gtp1_header {    /* According to 3GPP TS 29.060. */
-        __u8    flags;
-        __u8    type;
-        __be16  length;
-        __be32  tid;
-} __attribute__ ((packed));
+#include "large-pcap-analyzer.h"
 
 
 //------------------------------------------------------------------------------
@@ -151,259 +48,44 @@ boolean g_verbose = FALSE;
 
 
 //------------------------------------------------------------------------------
-// Functions
+// Global Functions
 //------------------------------------------------------------------------------
-
-void print_help()
-{
-    printf("%s [-h] [-v] [-a] [-w outfile.pcap] [-Y tcpdump_filter] [-G gtpu_tcpdump_filter] [-s string] somefile.pcap ...\n", PACKAGE_NAME);
-    printf("by Francesco Montorsi, (c) Nov 2014-2017\n");
-    printf("version %s\n\n", PACKAGE_VERSION);
-    printf("Help:\n");
-    printf(" -h                       this help\n");
-    printf(" -v                       be verbose\n");
-    printf(" -a                       open output file in APPEND mode instead of TRUNCATE\n");
-    printf(" -w <outfile.pcap>        where to save the PCAP containing the results of filtering\n");
-    printf(" -Y <tcpdump_filter>      the PCAP filter to apply when READING the pcap\n");
-    printf(" -G <gtpu_tcpdump_filter> the PCAP filter to apply on inner GTPu frames (if any) to select packets to save in outfile.pcap\n");
-    printf(" -s <search-string>       an string filter  to select packets to save in outfile.pcap\n");
-    printf(" somefile.pcap            the large PCAP to analyze (you can provide more than 1 file)\n");
-    printf("Note that the -Y and -G options accept filters expressed in tcpdump/pcap_filters syntax.\n");
-    printf("See http://www.manpagez.com/man/7/pcap-filter/ for more info.\n");
-    printf("\n");
-    exit(0);
-}
 
 void printf_verbose(const char *fmtstr, ...)
 {
 	va_list args;
 	va_start(args, fmtstr);
-
 	if (g_verbose)
 		vprintf(fmtstr, args);
-
 	va_end(args);
 }
 
 
-GtpuParserRetCode get_gtpu_inner_frame_offset(struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet, int* offsetOut)
+//------------------------------------------------------------------------------
+// Static Functions
+//------------------------------------------------------------------------------
+
+static void print_help()
 {
-	unsigned int offset = 0;
-#ifdef DEBUG
-	unsigned int offset_ethernet=0, offset_ipv4=0, offset_udp=0;
-#endif
-
-
-	// parse Ethernet layer
-
-	if(pcap_header->len < sizeof(struct ether_header))
-		return GPRC_TOO_SHORT_PKT; // Packet too short
-
-	const struct ether_header* ehdr = (const struct ether_header*)pcap_packet;
-	uint16_t eth_type = ntohs(ehdr->ether_type);
-	offset = sizeof(struct ether_header);
-#ifdef DEBUG
-	offset_ethernet=offset;
-#endif
-
-	// parse VLAN tags
-
-	while (ETHERTYPE_IS_VLAN(eth_type) && offset < pcap_header->len)
-	{
-		const Ether80211q* qType = (const Ether80211q*) (pcap_packet + offset);
-		eth_type = ntohs(qType->protoType);
-		offset += sizeof(Ether80211q);
-	}
-
-	if (eth_type != ETH_P_IP)
-		return GPRC_NOT_GTPU_PKT;		// not a GTPu packet
-
-
-	// parse IPv4 layer
-	// NOTE: for the encapsulation, only IPv4 is supported; IPv6 is never used for encapsulation anyway!
-
-	if (pcap_header->len < (offset + sizeof(struct ip)) )
-		return GPRC_TOO_SHORT_PKT;		// Packet too short
-
-	const struct ip* ip = (const struct ip*) (pcap_packet + offset);
-	if ( ip->ip_v != 4 )
-		return GPRC_INVALID_PKT;		// wrong packet
-
-	if(ip->ip_p != IPPROTO_UDP)
-		return GPRC_NOT_GTPU_PKT;		// not a GTPu packet
-
-	size_t hlen = (u_int) ip->ip_hl * 4;
-	offset += hlen;
-#ifdef DEBUG
-	offset_ipv4=offset;
-#endif
-
-
-	// parse UDP layer
-
-	if (pcap_header->len < (offset + sizeof(struct udphdr)) )
-		return GPRC_TOO_SHORT_PKT;		// Packet too short
-
-	const struct udphdr* udp = (const struct udphdr*)(pcap_packet + offset);
-	if (udp->source != htons(GTP1U_PORT) &&
-			udp->dest != htons(GTP1U_PORT))
-		return GPRC_NOT_GTPU_PKT;		// not a GTPu packet
-
-	offset += sizeof(struct udphdr);
-#ifdef DEBUG
-	offset_udp=offset;
-#endif
-
-
-	// parse GTPu layer
-
-	if (pcap_header->len < (offset + sizeof(struct gtp1_header)) )
-		return GPRC_TOO_SHORT_PKT;		// Packet too short
-
-	const struct gtp1_header* gtpu = (const struct gtp1_header*)(pcap_packet + offset);
-
-	//check for gtp-u message (type = 0xff) and is a gtp release 1
-	if ((gtpu->flags & 0xf0) != 0x30)
-		return GPRC_NOT_GTPU_PKT;		// not a GTPu packet
-	if (gtpu->type != GTP_TPDU)
-		return GPRC_NOT_GTPU_PKT;		// not a GTPu packet
-
-	offset += sizeof(struct gtp1_header);
-	const u_char* gtp_start = pcap_packet + offset;
-	const u_char* gtp_payload = pcap_packet + offset;
-
-	// check for sequence number field and NPDU field
-	if ((gtpu->flags & (GTP1_F_NPDU | GTP1_F_SEQ)) != 0)
-		offset += 4;
-
-	// parse the extension bit
-	if ((gtpu->flags & GTP1_F_EXTHDR) != 0)
-	{
-		// skip all extensions present
-		uint16_t ext_type;
-		do
-		{
-			uint16_t word = *((uint16_t*)gtp_payload);
-			gtp_payload+=2;
-
-			uint16_t ext_size = (word & 0xff00) >> 8;
-			if (ext_size != 0)
-			{
-				uint16_t i;
-
-				ext_size = (ext_size << 1) - 2;
-				for (i = 0; i < ext_size; i++)
-				{
-					gtp_payload+=2;
-				}
-
-				uint16_t word = *((uint16_t*)gtp_payload);
-				gtp_payload+=2;
-
-				ext_type = (word & 0x00ff);
-			}
-			else
-			{
-				ext_type = 0;
-			}
-		} while (ext_type != 0);
-	}
-
-	offset += (gtp_payload - gtp_start);
-
-	// check that a valid IPv4 layer is following
-
-	if (pcap_header->len < (offset + sizeof(struct ip)) )
-		return GPRC_TOO_SHORT_PKT;		// Packet too short
-
-	const struct ip* ipinner = (const struct ip*) (pcap_packet + offset);
-	if ( ipinner->ip_v != 4 && ipinner->ip_v != 6 )
-		return GPRC_INVALID_PKT;		// wrong packet or above GTPu there is no IP layer (it could be e.g., PPP or other)
-
-
-	// ok, found the offset for a valid GTPu packet
-
-	if (offsetOut)
-		*offsetOut = offset;
-
-	return GPRC_VALID_GTPU_PKT;
+	printf("%s [-h] [-v] [-a] [-w outfile.pcap] [-Y tcpdump_filter] [-G gtpu_tcpdump_filter] [-s string] somefile.pcap ...\n", PACKAGE_NAME);
+	printf("by Francesco Montorsi, (c) Nov 2014-2017\n");
+	printf("version %s\n\n", PACKAGE_VERSION);
+	printf("Help:\n");
+	printf(" -h                       this help\n");
+	printf(" -v                       be verbose\n");
+	printf(" -a                       open output file in APPEND mode instead of TRUNCATE\n");
+	printf(" -w <outfile.pcap>        where to save the PCAP containing the results of filtering\n");
+	printf(" -Y <tcpdump_filter>      the PCAP filter to apply when READING the pcap\n");
+	printf(" -G <gtpu_tcpdump_filter> the PCAP filter to apply on inner GTPu frames (if any) to select packets to save in outfile.pcap\n");
+	printf(" -s <search-string>       an string filter  to select packets to save in outfile.pcap\n");
+	printf(" somefile.pcap            the large PCAP to analyze (you can provide more than 1 file)\n");
+	printf("Note that the -Y and -G options accept filters expressed in tcpdump/pcap_filters syntax.\n");
+	printf("See http://www.manpagez.com/man/7/pcap-filter/ for more info.\n");
+	printf("\n");
+	exit(0);
 }
 
-boolean apply_filter_on_inner_ipv4_frame(struct pcap_pkthdr* pcap_header, const u_char* pcap_packet,
-		  	  	  	  	  	  	  	  unsigned int inner_ipv4_offset, unsigned int inner_ipv4_len, struct bpf_program* gtpu_filter)
-{
-	boolean tosave = FALSE;
-	//memset(g_buffer, 0, sizeof(g_buffer));   // not actually needed
-
-	// rebuild the ethernet frame, copying the original one possibly
-	const struct ether_header* orig_ehdr = (struct ether_header*)pcap_packet;
-	struct ether_header* fake_ehdr = (struct ether_header*)g_buffer;
-	memcpy(fake_ehdr, orig_ehdr, sizeof(*orig_ehdr));
-	fake_ehdr->ether_type = htons(ETH_P_IP);			// erase any layer (like VLAN) possibly present in orig packet
-
-	// copy from IPv4 onward:
-	const u_char* orig_inner = pcap_packet + inner_ipv4_offset;
-	u_char* fake_ipv4 = g_buffer + sizeof(struct ether_header);
-	memcpy(fake_ipv4, orig_inner, inner_ipv4_len);
-
-	// create also a fake
-	struct pcap_pkthdr fakehdr;
-	memcpy(&fakehdr.ts, &pcap_header->ts, sizeof(pcap_header->ts));
-	fakehdr.caplen = fakehdr.len = sizeof(struct ether_header) + inner_ipv4_len;
-
-	// pcap_offline_filter returns
-	// zero if the packet doesn't match the filter and non-zero
-	// if the packet matches the filter.
-	int ret = pcap_offline_filter(gtpu_filter, &fakehdr, g_buffer);
-	if (ret != 0)
-	{
-		tosave = TRUE;
-	}
-
-	return tosave;
-}
-
-boolean must_be_saved(struct pcap_pkthdr* pcap_header, const u_char* pcap_packet,
-					  const char *search, struct bpf_program* gtpu_filter, boolean* is_gtpu)
-{
-	boolean tosave = FALSE;
-
-	// string-search filter:
-
-	if (search)
-	{
-		unsigned int len = MIN(pcap_header->len, MAX_PACKET_LEN);
-
-		memcpy(g_buffer, pcap_packet, len);
-		g_buffer[len] = '\0';
-
-		if (!memmem(g_buffer, len, search, strlen(search)))
-			tosave |= TRUE;
-	}
-
-
-	// GTPu filter:
-
-	if (gtpu_filter)
-	{
-		// is this a GTPu packet?
-		int offset;
-		GtpuParserRetCode errcode = get_gtpu_inner_frame_offset(pcap_header, pcap_packet, &offset);
-		if (is_gtpu && errcode == GPRC_VALID_GTPU_PKT)
-			*is_gtpu = TRUE;
-
-		int len = pcap_header->len - offset;
-		if (offset > 0 && len > 0)
-		{
-			tosave |= apply_filter_on_inner_ipv4_frame(pcap_header, pcap_packet, offset, len, gtpu_filter);
-		}
-	}
-
-
-	return tosave;
-}
-
-boolean process_pcap_handle(pcap_t* pcap_handle_in,
+static boolean process_pcap_handle(pcap_t* pcap_handle_in,
 							struct bpf_program* gtpu_filter, const char *search,
 							pcap_dumper_t* pcap_dumper, boolean pcapfilter_set,
 							unsigned long* nloadedOUT, unsigned long* nmatchingOUT)
@@ -629,9 +311,9 @@ int pcap_compile_nopcap_with_err(int snaplen_arg, int linktype_arg,
 	return ret;
 }*/
 
-boolean process_file(const char* infile, const char *outfile, boolean outfile_append,
-					const char *filter, const char* gtpu_filter, const char *search,
-                     unsigned long* nloadedOUT, unsigned long* nmatchingOUT)
+static boolean process_file(const char* infile, const char *outfile, boolean outfile_append,
+							const char *filter, const char* gtpu_filter, const char *search,
+							unsigned long* nloadedOUT, unsigned long* nmatchingOUT)
 {
     pcap_t *pcap_handle_in = NULL;
     char pcap_errbuf[PCAP_ERRBUF_SIZE];
