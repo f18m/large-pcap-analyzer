@@ -18,7 +18,7 @@ AC_PROG_MAKE_SET
 AC_CHECK_LIB([pcap], [pcap_open_live], [], [echo "PCAP library not found. Aborting." ; exit 1])
 
 # Checks for header files.
-#AC_CHECK_HEADERS([stdlib.h string.h sys/time.h unistd.h])
+AC_CHECK_HEADER([pcap.h])
 
 # Checks for typedefs, structures, and compiler characteristics.
 

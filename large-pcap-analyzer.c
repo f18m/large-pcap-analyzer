@@ -45,16 +45,19 @@
 #include <unistd.h>
 #include <sys/time.h>
 #include <ctype.h>
-#include <pcap/pcap.h>
 #include <sys/stat.h>
 #include <assert.h>
 #include <stdarg.h>
-
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netinet/if_ether.h> /* includes net/ethernet.h */
 #include <netinet/ip.h> /* superset of previous */
 #include <linux/udp.h>
+
+// libpcap dependency:
+// NOTE: in version 1.7.x there is no pcap/pcap.h, just a pcap.h apparently:
+//#include <pcap/pcap.h>
+#include <pcap.h>
 
 #include "config.h"
 
