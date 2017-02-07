@@ -103,14 +103,10 @@ CONFIG_CLEAN_VPATH_FILES =
 am__installdirs = "$(DESTDIR)$(bindir)"
 PROGRAMS = $(bin_PROGRAMS)
 am__dirstamp = $(am__leading_dot)dirstamp
-am_large_pcap_analyzer_OBJECTS =  \
-	src/large_pcap_analyzer-large-pcap-analyzer.$(OBJEXT) \
-	src/large_pcap_analyzer-filter.$(OBJEXT) \
-	src/large_pcap_analyzer-parse.$(OBJEXT)
+am_large_pcap_analyzer_OBJECTS = src/large-pcap-analyzer.$(OBJEXT) \
+	src/filter.$(OBJEXT) src/parse.$(OBJEXT)
 large_pcap_analyzer_OBJECTS = $(am_large_pcap_analyzer_OBJECTS)
 large_pcap_analyzer_LDADD = $(LDADD)
-large_pcap_analyzer_LINK = $(CXXLD) $(large_pcap_analyzer_CXXFLAGS) \
-	$(CXXFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
 AM_V_P = $(am__v_P_$(V))
 am__v_P_ = $(am__v_P_$(AM_DEFAULT_VERBOSITY))
 am__v_P_0 = false
@@ -127,10 +123,6 @@ DEFAULT_INCLUDES = -I. -I$(top_builddir)/src
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
 am__mv = mv -f
-AM_V_lt = $(am__v_lt_$(V))
-am__v_lt_ = $(am__v_lt_$(AM_DEFAULT_VERBOSITY))
-am__v_lt_0 = --silent
-am__v_lt_1 = 
 CXXCOMPILE = $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
 	$(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS)
 AM_V_CXX = $(am__v_CXX_$(V))
@@ -205,7 +197,7 @@ CPP = gcc -E
 CPPFLAGS = 
 CXX = g++
 CXXDEPMODE = depmode=gcc3
-CXXFLAGS = 
+CXXFLAGS =  -Wall -Wextra -Werror -O3
 CYGPATH_W = echo
 DEFS = -DHAVE_CONFIG_H
 DEPDIR = .deps
@@ -230,15 +222,15 @@ OBJEXT = o
 PACKAGE = large-pcap-analyzer
 PACKAGE_BUGREPORT = francesco.montorsi@gmail.com
 PACKAGE_NAME = large-pcap-analyzer
-PACKAGE_STRING = large-pcap-analyzer 3.2
+PACKAGE_STRING = large-pcap-analyzer 3.3
 PACKAGE_TARNAME = large-pcap-analyzer
 PACKAGE_URL = 
-PACKAGE_VERSION = 3.2
+PACKAGE_VERSION = 3.3
 PATH_SEPARATOR = :
 SET_MAKE = 
 SHELL = /bin/bash
 STRIP = 
-VERSION = 3.2
+VERSION = 3.3
 abs_builddir = /mnt/data/work/fmontorsi/mysw/large-pcap-analyzer
 abs_srcdir = /mnt/data/work/fmontorsi/mysw/large-pcap-analyzer
 abs_top_builddir = /mnt/data/work/fmontorsi/mysw/large-pcap-analyzer
@@ -287,11 +279,6 @@ top_srcdir = .
 # avoid warnings about this packet not being in GNU style:
 AUTOMAKE_OPTIONS = foreign subdir-objects
 large_pcap_analyzer_SOURCES = src/large-pcap-analyzer.cpp src/filter.cpp src/parse.cpp
-common_flags = -Wall -Wextra -Werror
-
-# useful for debug builds:
-large_pcap_analyzer_CFLAGS = $(AM_CFLAGS) $(common_flags) -g -O0 -DDEBUG
-large_pcap_analyzer_CXXFLAGS = $(AM_CFLAGS) $(common_flags) -g -O0 -DDEBUG
 all: all-am
 
 .SUFFIXES:
@@ -392,16 +379,15 @@ src/$(am__dirstamp):
 src/$(DEPDIR)/$(am__dirstamp):
 	@$(MKDIR_P) src/$(DEPDIR)
 	@: > src/$(DEPDIR)/$(am__dirstamp)
-src/large_pcap_analyzer-large-pcap-analyzer.$(OBJEXT):  \
-	src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
-src/large_pcap_analyzer-filter.$(OBJEXT): src/$(am__dirstamp) \
+src/large-pcap-analyzer.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
-src/large_pcap_analyzer-parse.$(OBJEXT): src/$(am__dirstamp) \
+src/filter.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
+src/parse.$(OBJEXT): src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
 
 large_pcap_analyzer$(EXEEXT): $(large_pcap_analyzer_OBJECTS) $(large_pcap_analyzer_DEPENDENCIES) $(EXTRA_large_pcap_analyzer_DEPENDENCIES) 
 	@rm -f large_pcap_analyzer$(EXEEXT)
-	$(AM_V_CXXLD)$(large_pcap_analyzer_LINK) $(large_pcap_analyzer_OBJECTS) $(large_pcap_analyzer_LDADD) $(LIBS)
+	$(AM_V_CXXLD)$(CXXLINK) $(large_pcap_analyzer_OBJECTS) $(large_pcap_analyzer_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -410,9 +396,9 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-include src/$(DEPDIR)/large_pcap_analyzer-filter.Po
-include src/$(DEPDIR)/large_pcap_analyzer-large-pcap-analyzer.Po
-include src/$(DEPDIR)/large_pcap_analyzer-parse.Po
+include src/$(DEPDIR)/filter.Po
+include src/$(DEPDIR)/large-pcap-analyzer.Po
+include src/$(DEPDIR)/parse.Po
 
 .cpp.o:
 	$(AM_V_CXX)depbase=`echo $@ | sed 's|[^/]*$$|$(DEPDIR)/&|;s|\.o$$||'`;\
@@ -429,48 +415,6 @@ include src/$(DEPDIR)/large_pcap_analyzer-parse.Po
 #	$(AM_V_CXX)source='$<' object='$@' libtool=no \
 #	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) \
 #	$(AM_V_CXX_no)$(CXXCOMPILE) -c -o $@ `$(CYGPATH_W) '$<'`
-
-src/large_pcap_analyzer-large-pcap-analyzer.o: src/large-pcap-analyzer.cpp
-	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(large_pcap_analyzer_CXXFLAGS) $(CXXFLAGS) -MT src/large_pcap_analyzer-large-pcap-analyzer.o -MD -MP -MF src/$(DEPDIR)/large_pcap_analyzer-large-pcap-analyzer.Tpo -c -o src/large_pcap_analyzer-large-pcap-analyzer.o `test -f 'src/large-pcap-analyzer.cpp' || echo '$(srcdir)/'`src/large-pcap-analyzer.cpp
-	$(AM_V_at)$(am__mv) src/$(DEPDIR)/large_pcap_analyzer-large-pcap-analyzer.Tpo src/$(DEPDIR)/large_pcap_analyzer-large-pcap-analyzer.Po
-#	$(AM_V_CXX)source='src/large-pcap-analyzer.cpp' object='src/large_pcap_analyzer-large-pcap-analyzer.o' libtool=no \
-#	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) \
-#	$(AM_V_CXX_no)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(large_pcap_analyzer_CXXFLAGS) $(CXXFLAGS) -c -o src/large_pcap_analyzer-large-pcap-analyzer.o `test -f 'src/large-pcap-analyzer.cpp' || echo '$(srcdir)/'`src/large-pcap-analyzer.cpp
-
-src/large_pcap_analyzer-large-pcap-analyzer.obj: src/large-pcap-analyzer.cpp
-	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(large_pcap_analyzer_CXXFLAGS) $(CXXFLAGS) -MT src/large_pcap_analyzer-large-pcap-analyzer.obj -MD -MP -MF src/$(DEPDIR)/large_pcap_analyzer-large-pcap-analyzer.Tpo -c -o src/large_pcap_analyzer-large-pcap-analyzer.obj `if test -f 'src/large-pcap-analyzer.cpp'; then $(CYGPATH_W) 'src/large-pcap-analyzer.cpp'; else $(CYGPATH_W) '$(srcdir)/src/large-pcap-analyzer.cpp'; fi`
-	$(AM_V_at)$(am__mv) src/$(DEPDIR)/large_pcap_analyzer-large-pcap-analyzer.Tpo src/$(DEPDIR)/large_pcap_analyzer-large-pcap-analyzer.Po
-#	$(AM_V_CXX)source='src/large-pcap-analyzer.cpp' object='src/large_pcap_analyzer-large-pcap-analyzer.obj' libtool=no \
-#	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) \
-#	$(AM_V_CXX_no)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(large_pcap_analyzer_CXXFLAGS) $(CXXFLAGS) -c -o src/large_pcap_analyzer-large-pcap-analyzer.obj `if test -f 'src/large-pcap-analyzer.cpp'; then $(CYGPATH_W) 'src/large-pcap-analyzer.cpp'; else $(CYGPATH_W) '$(srcdir)/src/large-pcap-analyzer.cpp'; fi`
-
-src/large_pcap_analyzer-filter.o: src/filter.cpp
-	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(large_pcap_analyzer_CXXFLAGS) $(CXXFLAGS) -MT src/large_pcap_analyzer-filter.o -MD -MP -MF src/$(DEPDIR)/large_pcap_analyzer-filter.Tpo -c -o src/large_pcap_analyzer-filter.o `test -f 'src/filter.cpp' || echo '$(srcdir)/'`src/filter.cpp
-	$(AM_V_at)$(am__mv) src/$(DEPDIR)/large_pcap_analyzer-filter.Tpo src/$(DEPDIR)/large_pcap_analyzer-filter.Po
-#	$(AM_V_CXX)source='src/filter.cpp' object='src/large_pcap_analyzer-filter.o' libtool=no \
-#	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) \
-#	$(AM_V_CXX_no)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(large_pcap_analyzer_CXXFLAGS) $(CXXFLAGS) -c -o src/large_pcap_analyzer-filter.o `test -f 'src/filter.cpp' || echo '$(srcdir)/'`src/filter.cpp
-
-src/large_pcap_analyzer-filter.obj: src/filter.cpp
-	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(large_pcap_analyzer_CXXFLAGS) $(CXXFLAGS) -MT src/large_pcap_analyzer-filter.obj -MD -MP -MF src/$(DEPDIR)/large_pcap_analyzer-filter.Tpo -c -o src/large_pcap_analyzer-filter.obj `if test -f 'src/filter.cpp'; then $(CYGPATH_W) 'src/filter.cpp'; else $(CYGPATH_W) '$(srcdir)/src/filter.cpp'; fi`
-	$(AM_V_at)$(am__mv) src/$(DEPDIR)/large_pcap_analyzer-filter.Tpo src/$(DEPDIR)/large_pcap_analyzer-filter.Po
-#	$(AM_V_CXX)source='src/filter.cpp' object='src/large_pcap_analyzer-filter.obj' libtool=no \
-#	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) \
-#	$(AM_V_CXX_no)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(large_pcap_analyzer_CXXFLAGS) $(CXXFLAGS) -c -o src/large_pcap_analyzer-filter.obj `if test -f 'src/filter.cpp'; then $(CYGPATH_W) 'src/filter.cpp'; else $(CYGPATH_W) '$(srcdir)/src/filter.cpp'; fi`
-
-src/large_pcap_analyzer-parse.o: src/parse.cpp
-	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(large_pcap_analyzer_CXXFLAGS) $(CXXFLAGS) -MT src/large_pcap_analyzer-parse.o -MD -MP -MF src/$(DEPDIR)/large_pcap_analyzer-parse.Tpo -c -o src/large_pcap_analyzer-parse.o `test -f 'src/parse.cpp' || echo '$(srcdir)/'`src/parse.cpp
-	$(AM_V_at)$(am__mv) src/$(DEPDIR)/large_pcap_analyzer-parse.Tpo src/$(DEPDIR)/large_pcap_analyzer-parse.Po
-#	$(AM_V_CXX)source='src/parse.cpp' object='src/large_pcap_analyzer-parse.o' libtool=no \
-#	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) \
-#	$(AM_V_CXX_no)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(large_pcap_analyzer_CXXFLAGS) $(CXXFLAGS) -c -o src/large_pcap_analyzer-parse.o `test -f 'src/parse.cpp' || echo '$(srcdir)/'`src/parse.cpp
-
-src/large_pcap_analyzer-parse.obj: src/parse.cpp
-	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(large_pcap_analyzer_CXXFLAGS) $(CXXFLAGS) -MT src/large_pcap_analyzer-parse.obj -MD -MP -MF src/$(DEPDIR)/large_pcap_analyzer-parse.Tpo -c -o src/large_pcap_analyzer-parse.obj `if test -f 'src/parse.cpp'; then $(CYGPATH_W) 'src/parse.cpp'; else $(CYGPATH_W) '$(srcdir)/src/parse.cpp'; fi`
-	$(AM_V_at)$(am__mv) src/$(DEPDIR)/large_pcap_analyzer-parse.Tpo src/$(DEPDIR)/large_pcap_analyzer-parse.Po
-#	$(AM_V_CXX)source='src/parse.cpp' object='src/large_pcap_analyzer-parse.obj' libtool=no \
-#	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) \
-#	$(AM_V_CXX_no)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(large_pcap_analyzer_CXXFLAGS) $(CXXFLAGS) -c -o src/large_pcap_analyzer-parse.obj `if test -f 'src/parse.cpp'; then $(CYGPATH_W) 'src/parse.cpp'; else $(CYGPATH_W) '$(srcdir)/src/parse.cpp'; fi`
 
 ID: $(am__tagged_files)
 	$(am__define_uniq_tagged_files); mkid -fID $$unique
@@ -826,9 +770,6 @@ uninstall-am: uninstall-binPROGRAMS
 
 .PRECIOUS: Makefile
 
-
-# release builds:
-#large_pcap_analyzer_CFLAGS = $(AM_CFLAGS) $(common_flags) -O3
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

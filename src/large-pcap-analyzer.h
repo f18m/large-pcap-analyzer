@@ -69,17 +69,15 @@
 // Constants
 //------------------------------------------------------------------------------
 
-#define MAX_PACKET_LEN      4096
-#define KB                  1024
-#define MB                  (1024*1024)
-#define GB                  (1024*1024*1024)
-#define MILLION             (1000000)
-#define SMALL_NUM           (0.000001)           // 1us
-#define MAX_SNAPLEN         (65535)
-
-#define ETHERTYPE_IS_VLAN(x)			((x) == ETH_P_8021Q || (x) == 0x9100/*qinq*/ || (x) == 0x88A8 /*802.1 ad*/)
+#define KB								(1024)
+#define MB								(1024*1024)
+#define GB								(1024*1024*1024)
+#define MILLION							(1000000)
+#define SMALL_NUM						(0.000001)           // 1us
+#define MAX_SNAPLEN						(65535)
 #define VLAN_VID_MASK					(0x0FFF)
-
+#define ETHERTYPE_IS_VLAN(x)			((x) == ETH_P_8021Q || (x) == 0x9100/*qinq*/ || (x) == 0x88A8 /*802.1 ad*/)
+#define INVALID_FLOW_HASH				(0)
 
 #if !defined(PCAP_NETMASK_UNKNOWN)
     /*
@@ -110,7 +108,6 @@
 //------------------------------------------------------------------------------
 
 typedef int        boolean;
-typedef uint64_t   flow_hash_t;
 
 #ifndef TRUE
     #define TRUE        1
@@ -135,6 +132,7 @@ typedef enum
 	FLOW_FOUND_SYN_AND_SYNACK,
 } FlowStatus_t;
 
+typedef uint64_t   flow_hash_t;								// init to INVALID_FLOW_HASH
 typedef std::map<flow_hash_t /* key */, FlowStatus_t /* value */>     flow_map_t;
 
 typedef struct
@@ -143,20 +141,28 @@ typedef struct
 	uint16_t protoType;
 } __attribute__((packed)) ether80211q_t;
 
-class filter_criteria_t
+class FilterCriteria
 {
 public:
-	filter_criteria_t()
+	FilterCriteria()
 	{
-	    memset(&capture_filter, 0, sizeof(capture_filter));
-	    memset(&gtpu_filter, 0, sizeof(gtpu_filter));
-	    capture_filter_set = FALSE;
-	    gtpu_filter_set = FALSE;
-	    valid_tcp_filter = FALSE;
-	    string_filter = NULL;
+		memset(&capture_filter, 0, sizeof(capture_filter));
+		memset(&gtpu_filter, 0, sizeof(gtpu_filter));
+		capture_filter_set = FALSE;
+		gtpu_filter_set = FALSE;
+		valid_tcp_filter = FALSE;
+		string_filter = NULL;
 	}
 
+	~FilterCriteria()
+	{
+		if (capture_filter_set)
+			pcap_freecode(&capture_filter);
+		if (gtpu_filter_set)
+			pcap_freecode(&gtpu_filter);
+	}
 
+public:
 	struct bpf_program 			capture_filter;
 	boolean 					capture_filter_set;
 
@@ -167,9 +173,7 @@ public:
 
 	boolean 					valid_tcp_filter;
 	flow_map_t 					valid_tcp_firstpass_flows;			// contains the result of the 1st pass
-
-} ;
-
+};
 
 // stuff coming from http://lxr.free-electrons.com/source/include/net/gtp.h
 
@@ -198,9 +202,10 @@ extern void printf_verbose(const char *fmtstr, ...);
 
 // filter routines:
 extern boolean must_be_saved(struct pcap_pkthdr* pcap_header, const u_char* pcap_packet,
-							const filter_criteria_t* filter, boolean* is_gtpu);
+							const FilterCriteria* filter, boolean* is_gtpu);
 
 // parse routines:
+extern ParserRetCode_t get_transport_offset(struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet, int* offsetTransportOut, int* ipprotOut);
 extern ParserRetCode_t get_gtpu_inner_ip_offset(struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet, int* offsetIpInner, int* ipver);
 extern ParserRetCode_t get_gtpu_inner_transport_offset(struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet, int* offsetTransportInner, int* ipprotInner);
 

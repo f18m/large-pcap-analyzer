@@ -84,7 +84,7 @@ static boolean apply_filter_on_inner_ipv4_frame(struct pcap_pkthdr* pcap_header,
 //------------------------------------------------------------------------------
 
 boolean must_be_saved(struct pcap_pkthdr* pcap_header, const u_char* pcap_packet,
-					const filter_criteria_t* filter, boolean* is_gtpu)
+					const FilterCriteria* filter, boolean* is_gtpu)
 {
 	boolean tosave = FALSE;
 
@@ -92,7 +92,7 @@ boolean must_be_saved(struct pcap_pkthdr* pcap_header, const u_char* pcap_packet
 
 	if (filter->string_filter)
 	{
-		unsigned int len = MIN(pcap_header->len, MAX_PACKET_LEN);
+		unsigned int len = MIN(pcap_header->len, MAX_SNAPLEN);
 
 		memcpy(g_buffer, pcap_packet, len);
 		g_buffer[len] = '\0';

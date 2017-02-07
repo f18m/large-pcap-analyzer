@@ -92,84 +92,102 @@ static void print_help()
 	exit(0);
 }
 
-static boolean firstpass_process_pcap_handle(pcap_t* pcap_handle_in, filter_criteria_t* filter, unsigned long* nvalidflowsOUT)
+static boolean firstpass_process_pcap_handle_for_tcp_valid_streams(pcap_t* pcap_handle_in, FilterCriteria* filter, unsigned long* nvalidflowsOUT)
 {
-	unsigned long nloaded = 0;
-    struct timeval start, stop;
-    const u_char *pcap_packet;
-    struct pcap_pkthdr *pcap_header;
+	unsigned long nloaded_pkts = 0, ninvalid_pkts = 0, nnottcp_pkts = 0, nvalid_streams = 0;
+	struct timeval start, stop;
+	const u_char *pcap_packet;
+	struct pcap_pkthdr *pcap_header;
 
-    gettimeofday(&start, NULL);
-    while (pcap_next_ex(pcap_handle_in, &pcap_header, &pcap_packet) > 0)
-    {
-        if ((nloaded % MILLION) == 0 && nloaded > 0)
-        	printf_verbose("%luM packets loaded from PCAP...\n", nloaded/MILLION);
+	// the output of this function is saved inside the FILTER object:
+	filter->valid_tcp_firstpass_flows.clear();
 
-        boolean is_gtpu = FALSE, is_tcp_syn=FALSE, is_tcp_syn_ack=FALSE;
-
-        // get
-        int offsetInnerTransport = 0, innerIpProt = 0;
-        ParserRetCode_t ret = get_gtpu_inner_transport_offset(pcap_header, pcap_packet, &offsetInnerTransport, &innerIpProt);
-        if (ret == GPRC_VALID_PKT)
-        {
-        	is_gtpu = TRUE;
-
-        	// a GTPu packet
-        	if (innerIpProt == IPPROTO_TCP)
-        	{
-        		const struct tcphdr* tcp = (const struct tcphdr*)(pcap_packet + offsetInnerTransport);
-        		if (tcp->syn == 1 && tcp->ack == 0)
-        			is_tcp_syn=TRUE;
-        		if (tcp->syn == 1 && tcp->ack == 1)
-					is_tcp_syn_ack=TRUE;
-        	}
-        }
-        else		// not a GTPu packet
-        {
-        	// TODO: try to get pointer to TCP
-        }
+	gettimeofday(&start, NULL);
+	while (pcap_next_ex(pcap_handle_in, &pcap_header, &pcap_packet) > 0)
+	{
+		if ((nloaded_pkts % MILLION) == 0 && nloaded_pkts > 0)
+			printf_verbose("%luM packets loaded from PCAP...\n", nloaded_pkts/MILLION);
 
 
-        if (is_tcp_syn || is_tcp_syn_ack)
-        {
-        	flow_hash_t tag = compute_flow_hash(pcap_header, pcap_packet, is_gtpu);
+		// first, detect if this is a TCP SYN/SYN-ACK packet
 
-        	if (is_tcp_syn)
-        	{
-        		assert(!is_tcp_syn_ack);
-        		filter->valid_tcp_firstpass_flows.insert( std::pair<flow_hash_t /* key */, FlowStatus_t /* value */>(tag, FLOW_FOUND_SYN) );		// new connection, SYN packet found
-        	}
-        	else if (is_tcp_syn_ack)
-        	{
-        		assert(!is_tcp_syn);
+		boolean is_gtpu=FALSE, is_tcp_syn=FALSE, is_tcp_syn_ack=FALSE;
+		int offsetInnerTransport = 0, innerIpProt = 0;
+		ParserRetCode_t ret = get_gtpu_inner_transport_offset(pcap_header, pcap_packet, &offsetInnerTransport, &innerIpProt);
+		if (ret == GPRC_VALID_PKT)
+		{
+			is_gtpu = TRUE;
+		}
+		else		// not a GTPu packet
+		{
+			ParserRetCode_t ret = get_transport_offset(pcap_header, pcap_packet, &offsetInnerTransport, &innerIpProt);
+			if (ret != GPRC_VALID_PKT)
+			{
+				offsetInnerTransport = 0;
+				innerIpProt = 0;
+				ninvalid_pkts++;
+			}
+		}
 
-        		flow_map_t::iterator entry = filter->valid_tcp_firstpass_flows.find(tag);
-        		if (entry != filter->valid_tcp_firstpass_flows.end() &&
-        				entry->second == FLOW_FOUND_SYN)
-        		{
-        			entry->second = FLOW_FOUND_SYN_AND_SYNACK;		// existing connection, SYN-ACK packet
+		if (innerIpProt == IPPROTO_TCP)
+		{
+			const struct tcphdr* tcp = (const struct tcphdr*)(pcap_packet + offsetInnerTransport);
+			if (tcp->syn == 1 && tcp->ack == 0)
+				is_tcp_syn=TRUE;
+			if (tcp->syn == 1 && tcp->ack == 1)
+				is_tcp_syn_ack=TRUE;
+		}
+		else
+		{
+			nnottcp_pkts++;
+		}
 
-        			if (nvalidflowsOUT)
-        				(*nvalidflowsOUT)++;
-        		}
-        	}
-        }
 
-        nloaded++;
-    }
-    gettimeofday(&stop, NULL);
+		// then save the state for the TCP connection associated to this packet:
 
-    printf_verbose("Processing took %i seconds.\n", (int) (stop.tv_sec - start.tv_sec));
+		if (is_tcp_syn || is_tcp_syn_ack)
+		{
+			flow_hash_t tag = compute_flow_hash(pcap_header, pcap_packet, is_gtpu);
+			if (tag != INVALID_FLOW_HASH)
+			{
+				if (is_tcp_syn)
+				{
+					assert(!is_tcp_syn_ack);
 
-    if (nvalidflowsOUT)
-    	printf_verbose("Processing detected %lu valid TCP flows.\n", *nvalidflowsOUT);
+					// new connection, SYN packet found
+					filter->valid_tcp_firstpass_flows.insert( std::pair<flow_hash_t /* key */, FlowStatus_t /* value */>(tag, FLOW_FOUND_SYN) );
+				}
+				else if (is_tcp_syn_ack)
+				{
+					assert(!is_tcp_syn);
 
-    return TRUE;
+					flow_map_t::iterator entry = filter->valid_tcp_firstpass_flows.find(tag);
+					if (entry != filter->valid_tcp_firstpass_flows.end() &&
+							entry->second == FLOW_FOUND_SYN)
+					{
+						entry->second = FLOW_FOUND_SYN_AND_SYNACK;		// existing connection, found SYN-ACK packet for that
+						nvalid_streams++;
+					}
+				}
+			}
+		}
+
+		nloaded_pkts++;
+	}
+	gettimeofday(&stop, NULL);
+
+	printf_verbose("Processing took %i seconds.\n", (int) (stop.tv_sec - start.tv_sec));
+	printf_verbose("Detected %lu invalid packets, %lu non-TCP packets and %lu valid TCP flows.\n", ninvalid_pkts, nnottcp_pkts, nvalid_streams);
+
+	if (nvalidflowsOUT)
+		*nvalidflowsOUT = nvalid_streams;
+
+	return TRUE;
 }
 
 
 static boolean process_pcap_handle(pcap_t* pcap_handle_in,
-									const filter_criteria_t* filter,
+									const FilterCriteria* filter,
 									pcap_dumper_t* pcap_dumper,
 									unsigned long* nloadedOUT, unsigned long* nmatchingOUT)
 {
@@ -222,20 +240,25 @@ static boolean process_pcap_handle(pcap_t* pcap_handle_in,
 
 
     printf_verbose("Processing took %i seconds.\n", (int) (stop.tv_sec - start.tv_sec));
-    printf_verbose("%luM packets (%lu packets) were loaded from PCAP%s.\n", nloaded/MILLION, nloaded, pcapfilter_desc);
+    printf("%luM packets (%lu packets) were loaded from PCAP%s.\n", nloaded/MILLION, nloaded, pcapfilter_desc);
 
     if (filter->gtpu_filter_set)
     	// in this case, the GTPu parser was run and we have a stat about how many packets are GTPu
 		printf_verbose("%luM packets (%lu packets) loaded from PCAP%s are GTPu packets (%.1f%%).\n",
 						ngtpu/MILLION, ngtpu, pcapfilter_desc, (double)(100.0*(double)(ngtpu)/(double)(nloaded)));
 
-    if (filter->string_filter || filter->gtpu_filter_set || filter->valid_tcp_filter)
-        printf("%lu packets matched the filtering criteria (search string / GTPu filter / valid TCP streams filter) and were saved into output PCAP.\n",
-               nmatching);
-    else
+    if (pcap_dumper)
     {
-    	assert(nmatching == 0);
-    	printf("No criteria for packet selection specified (search string / GTPu filter / valid TCP streams filter) so nothing was written into output PCAP.\n");
+		if (filter->string_filter || filter->gtpu_filter_set || filter->valid_tcp_filter)
+		{
+			printf("%lu packets matched the filtering criteria (search string / GTPu filter / valid TCP streams filter) and were saved into output PCAP.\n",
+				   nmatching);
+		}
+		else
+		{
+			assert(nmatching == 0);
+			printf("No criteria for packet selection specified (search string / GTPu filter / valid TCP streams filter) so nothing was written into output PCAP.\n");
+		}
     }
 
     if (g_timestamp_analysis)
@@ -258,11 +281,11 @@ static boolean process_pcap_handle(pcap_t* pcap_handle_in,
 		printf_verbose("Bytes loaded from PCAP = %lukiB = %luMiB; total bytes on wire = %lukiB = %luMiB\n",
 			   nbytes_avail/KB, nbytes_avail/MB, nbytes_orig/KB, nbytes_orig/MB);
 		if (nbytes_avail == nbytes_orig)
-			printf_verbose("  => the whole traffic has been captured in this PCAP!\n");
+			printf_verbose("  => all packets in the PCAP have been captured WITHOUT truncation.\n");
 
 		if (sec)
 		{
-			printf("Tcpreplay should replay this PCAP at an average of %.2fMbps / %.2fpps to respect PCAP timings!\n",
+			printf("Tcpreplay should replay this PCAP at an average of %.2fMbps / %.2fpps to respect PCAP timings.\n",
 				  (float)(8*nbytes_avail/MB)/sec, (float)nloaded/sec);
 		}
 		else
@@ -396,7 +419,7 @@ int pcap_compile_nopcap_with_err(int snaplen_arg, int linktype_arg,
 }*/
 
 static boolean process_file(const char* infile, const char *outfile, boolean outfile_append,
-							filter_criteria_t *filter,
+							FilterCriteria *filter,
 							unsigned long* nloadedOUT, unsigned long* nmatchingOUT)
 {
     char pcap_errbuf[PCAP_ERRBUF_SIZE];
@@ -427,8 +450,6 @@ static boolean process_file(const char* infile, const char *outfile, boolean out
             fprintf(stderr, "Couldn't install filter: %s\n", pcap_geterr(pcap_handle_in));
             return FALSE;
         }
-
-        printf("Successfully set PCAP filter\n");
     }
     else
         printf("No PCAP filter set: all packets inside the PCAP will be loaded.\n");
@@ -468,16 +489,18 @@ static boolean process_file(const char* infile, const char *outfile, boolean out
 
 
     	// first pass:
+        printf("Valid TCP filtering enabled: performing first pass\n");
 
     	unsigned long nvalidflows=0;
-    	if (!firstpass_process_pcap_handle(pcap_handle_in, filter, &nvalidflows))
+    	if (!firstpass_process_pcap_handle_for_tcp_valid_streams(pcap_handle_in, filter, &nvalidflows))
     		return FALSE;
 
 
     	if (nvalidflows)
     	{
-
 			// second pass:
+
+            printf("Valid TCP filtering enabled: performing second pass\n");
 
 			// reopen infile
 			pcap_close(pcap_handle_in);
@@ -486,12 +509,10 @@ static boolean process_file(const char* infile, const char *outfile, boolean out
 				fprintf(stderr, "Couldn't open file: %s\n", pcap_errbuf);
 				return FALSE;
 			}
-			printf_verbose("Analyzing PCAP file '%s'...\n", infile);
 
+			printf_verbose("Analyzing PCAP file '%s'...\n", infile);
 			if (st.st_size)
-			{
 				printf_verbose("The PCAP file has size %.2fGiB = %luMiB.\n", (double)st.st_size/(double)GB, st.st_size/MB);
-			}
 
 			if (!process_pcap_handle(pcap_handle_in, filter, pcap_dumper, nloadedOUT, nmatchingOUT))
 				return FALSE;
@@ -503,6 +524,8 @@ static boolean process_file(const char* infile, const char *outfile, boolean out
     }
     else
     {
+    	// standard mode (no -T option)
+
 		if (!process_pcap_handle(pcap_handle_in, filter, pcap_dumper, nloadedOUT, nmatchingOUT))
 			return FALSE;
     }
@@ -515,7 +538,7 @@ static boolean process_file(const char* infile, const char *outfile, boolean out
     return TRUE;
 }
 
-static boolean prepare_filter(filter_criteria_t* out,
+static boolean prepare_filter(FilterCriteria* out,
 								const char* pcap_filter_str, const char* gtpu_filter_str, const char* string_filter, boolean valid_tcp_filter)
 {
     // PCAP filter
@@ -529,8 +552,6 @@ static boolean prepare_filter(filter_criteria_t* out,
         out->capture_filter_set = TRUE;
         printf("Successfully compiled PCAP filter: %s\n", pcap_filter_str);
     }
-    else
-        printf("No PCAP filter set: all packets inside the PCAP will be loaded.\n");
 
 
     // GTPu PCAP filter
@@ -620,7 +641,7 @@ int main(int argc, char **argv)
     }
 
 
-    filter_criteria_t filter;
+    FilterCriteria filter;
     if (!prepare_filter(&filter, pcap_filter, pcap_gtpu_filter, search, valid_tcp_filter))
     {
     	// error was already logged
@@ -672,11 +693,6 @@ int main(int argc, char **argv)
         printf_verbose("Total number of loaded packets: %lu\n", nloaded);
         printf_verbose("Total number of matching packets: %lu\n", nmatching);
     }
-
-    if (filter.capture_filter_set)
-        pcap_freecode(&filter.capture_filter);
-    if (filter.gtpu_filter_set)
-        pcap_freecode(&filter.gtpu_filter);
 
     return 0;
 }

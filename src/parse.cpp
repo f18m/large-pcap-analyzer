@@ -101,7 +101,7 @@ static uint32_t hw_fasthash(const void *buf, size_t len, uint64_t offset)
 // Global Functions
 //------------------------------------------------------------------------------
 
-ParserRetCode_t get_ip_frame_offset(struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet, int* offsetOut, int* ipver)
+ParserRetCode_t get_ip_offset(struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet, int* offsetOut, int* ipver)
 {
 	unsigned int offset = 0;
 
@@ -147,10 +147,10 @@ ParserRetCode_t get_ip_frame_offset(struct pcap_pkthdr* pcap_header, const u_cha
 	return GPRC_VALID_PKT;
 }
 
-ParserRetCode_t get_transport_frame_offset(struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet, int* offsetTransportOut, int* ipprotOut)
+ParserRetCode_t get_transport_offset(struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet, int* offsetTransportOut, int* ipprotOut)
 {
 	int offset = 0, ipver = 0;
-	ParserRetCode_t ret = get_ip_frame_offset(pcap_header, pcap_packet, &offset, &ipver);
+	ParserRetCode_t ret = get_ip_offset(pcap_header, pcap_packet, &offset, &ipver);
 	if (ret != GPRC_VALID_PKT)
 		return ret;
 
@@ -190,10 +190,14 @@ ParserRetCode_t get_transport_frame_offset(struct pcap_pkthdr* pcap_header, cons
 	return GPRC_VALID_PKT;
 }
 
+//------------------------------------------------------------------------------
+// Global Functions - GTPu parsing
+//------------------------------------------------------------------------------
+
 ParserRetCode_t get_gtpu_inner_ip_offset(struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet, int* offsetIpInner, int* ipver)
 {
 	int offset = 0, ip_prot = 0;
-	ParserRetCode_t ret = get_transport_frame_offset(pcap_header, pcap_packet, &offset, &ip_prot);
+	ParserRetCode_t ret = get_transport_offset(pcap_header, pcap_packet, &offset, &ip_prot);
 	if (ret != GPRC_VALID_PKT)
 		return ret;
 	if (ip_prot != IPPROTO_UDP)
@@ -328,35 +332,38 @@ ParserRetCode_t get_gtpu_inner_transport_offset(struct pcap_pkthdr* pcap_header,
 }
 
 
+//------------------------------------------------------------------------------
+// Global Functions - flow hashing
+//------------------------------------------------------------------------------
 
 flow_hash_t compute_flow_hash(struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet, bool is_gtpu)
 {
-	flow_hash_t flow_hash = 0;
+	flow_hash_t flow_hash = INVALID_FLOW_HASH;
 	int offsetIp = 0, offsetTransport = 0, ip_prot = 0, ipver = 0;
 
 	if (is_gtpu)
 	{
 		ParserRetCode_t ret = get_gtpu_inner_ip_offset(pcap_header, pcap_packet, &offsetIp, &ipver);
 		if (ret != GPRC_VALID_PKT)
-			return ret;
+			return INVALID_FLOW_HASH;
 
 		ret = get_gtpu_inner_transport_offset(pcap_header, pcap_packet, &offsetTransport, &ip_prot);
 		if (ret != GPRC_VALID_PKT)
-			return ret;
+			return INVALID_FLOW_HASH;
 		if (ip_prot != IPPROTO_TCP)
-			return flow_hash;		// we only compute hashes for TCP
+			return INVALID_FLOW_HASH;		// we only compute hashes for TCP
 	}
 	else
 	{
-		ParserRetCode_t ret = get_ip_frame_offset(pcap_header, pcap_packet, &offsetIp, &ipver);
+		ParserRetCode_t ret = get_ip_offset(pcap_header, pcap_packet, &offsetIp, &ipver);
 		if (ret != GPRC_VALID_PKT)
-			return ret;
+			return INVALID_FLOW_HASH;
 
-		ret = get_transport_frame_offset(pcap_header, pcap_packet, &offsetTransport, &ip_prot);
+		ret = get_transport_offset(pcap_header, pcap_packet, &offsetTransport, &ip_prot);
 		if (ret != GPRC_VALID_PKT)
-			return ret;
+			return INVALID_FLOW_HASH;
 		if (ip_prot != IPPROTO_TCP)
-			return flow_hash;		// we only compute hashes for TCP
+			return INVALID_FLOW_HASH;		// we only compute hashes for TCP
 	}
 
 
@@ -381,9 +388,12 @@ flow_hash_t compute_flow_hash(struct pcap_pkthdr* pcap_header, const u_char* con
 	// hash ports
 
 	if (pcap_header->len < (offsetTransport + sizeof(struct tcphdr)) )
-		return GPRC_TOO_SHORT_PKT;		// Packet too short
+		return INVALID_FLOW_HASH;		// Packet too short
 
-	//const struct tcphdr* tcp = (const struct tcphdr*)(pcap_packet + offsetTransport);
+	const struct tcphdr* tcp = (const struct tcphdr*)(pcap_packet + offsetTransport);
+
+	flow_hash += hw_fasthash(&tcp->source, sizeof(tcp->source), 0);
+	flow_hash += hw_fasthash(&tcp->dest, sizeof(tcp->dest), 0);
 
 	return flow_hash;
 }
