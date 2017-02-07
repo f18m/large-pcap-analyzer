@@ -111,15 +111,12 @@ static bool firstpass_process_pcap_handle_for_tcp_valid_streams(pcap_t* pcap_han
 
 		// first, detect if this is a TCP SYN/SYN-ACK packet
 
-		bool is_gtpu=FALSE, is_tcp_syn=FALSE, is_tcp_syn_ack=FALSE;
+		bool is_tcp_syn=FALSE, is_tcp_syn_ack=FALSE;
 		int offsetInnerTransport = 0, innerIpProt = 0;
 		ParserRetCode_t ret = get_gtpu_inner_transport_offset(pcap_header, pcap_packet, &offsetInnerTransport, &innerIpProt);
-		if (ret == GPRC_VALID_PKT)
+		if (ret != GPRC_VALID_PKT)
 		{
-			is_gtpu = TRUE;
-		}
-		else		// not a GTPu packet
-		{
+			// not a GTPu packet
 			ParserRetCode_t ret = get_transport_offset(pcap_header, pcap_packet, &offsetInnerTransport, &innerIpProt);
 			if (ret != GPRC_VALID_PKT)
 			{
@@ -147,7 +144,7 @@ static bool firstpass_process_pcap_handle_for_tcp_valid_streams(pcap_t* pcap_han
 
 		if (is_tcp_syn || is_tcp_syn_ack)
 		{
-			flow_hash_t tag = compute_flow_hash(pcap_header, pcap_packet, is_gtpu);
+			flow_hash_t tag = compute_flow_hash(pcap_header, pcap_packet);
 			if (tag != INVALID_FLOW_HASH)
 			{
 				if (is_tcp_syn)

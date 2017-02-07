@@ -144,7 +144,7 @@ bool must_be_saved(struct pcap_pkthdr* pcap_header, const u_char* pcap_packet,
 
 	if (filter->valid_tcp_filter)
 	{
-		flow_hash_t hash = compute_flow_hash(pcap_header, pcap_packet, *is_gtpu);
+		flow_hash_t hash = compute_flow_hash(pcap_header, pcap_packet);
 
 		if (hash != INVALID_FLOW_HASH)
 		{

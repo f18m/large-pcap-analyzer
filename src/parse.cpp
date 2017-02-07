@@ -336,24 +336,22 @@ ParserRetCode_t get_gtpu_inner_transport_offset(struct pcap_pkthdr* pcap_header,
 // Global Functions - flow hashing
 //------------------------------------------------------------------------------
 
-flow_hash_t compute_flow_hash(struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet, bool is_gtpu)
+flow_hash_t compute_flow_hash(struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet)
 {
 	flow_hash_t flow_hash = INVALID_FLOW_HASH;
 	int offsetIp = 0, offsetTransport = 0, ip_prot = 0, ipver = 0;
 
-	if (is_gtpu)
+	// detect if this is an encapsulated packet or nto
+	ParserRetCode_t ret = get_gtpu_inner_ip_offset(pcap_header, pcap_packet, &offsetIp, &ipver);
+	if (ret == GPRC_VALID_PKT)
 	{
-		ParserRetCode_t ret = get_gtpu_inner_ip_offset(pcap_header, pcap_packet, &offsetIp, &ipver);
-		if (ret != GPRC_VALID_PKT)
-			return INVALID_FLOW_HASH;
-
 		ret = get_gtpu_inner_transport_offset(pcap_header, pcap_packet, &offsetTransport, &ip_prot);
 		if (ret != GPRC_VALID_PKT)
 			return INVALID_FLOW_HASH;
 		if (ip_prot != IPPROTO_TCP)
 			return INVALID_FLOW_HASH;		// we only compute hashes for TCP
 	}
-	else
+	else		// not a GTPu packet
 	{
 		ParserRetCode_t ret = get_ip_offset(pcap_header, pcap_packet, &offsetIp, &ipver);
 		if (ret != GPRC_VALID_PKT)

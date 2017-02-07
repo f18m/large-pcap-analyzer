@@ -207,6 +207,6 @@ extern ParserRetCode_t get_transport_offset(struct pcap_pkthdr* pcap_header, con
 extern ParserRetCode_t get_gtpu_inner_ip_offset(struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet, int* offsetIpInner, int* ipver);
 extern ParserRetCode_t get_gtpu_inner_transport_offset(struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet, int* offsetTransportInner, int* ipprotInner);
 
-extern flow_hash_t compute_flow_hash(struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet, bool is_gtpu);
+extern flow_hash_t compute_flow_hash(struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet);
 
 #endif
