@@ -107,8 +107,6 @@
 // Types
 //------------------------------------------------------------------------------
 
-typedef int        boolean;
-
 #ifndef TRUE
     #define TRUE        1
 #endif
@@ -164,14 +162,14 @@ public:
 
 public:
 	struct bpf_program 			capture_filter;
-	boolean 					capture_filter_set;
+	bool 					capture_filter_set;
 
 	struct bpf_program 			gtpu_filter;
-	boolean 					gtpu_filter_set;
+	bool 					gtpu_filter_set;
 
 	const char* 				string_filter;
 
-	boolean 					valid_tcp_filter;
+	bool 					valid_tcp_filter;
 	flow_map_t 					valid_tcp_firstpass_flows;			// contains the result of the 1st pass
 };
 
@@ -191,7 +189,7 @@ struct gtp1_header {    /* According to 3GPP TS 29.060. */
 //------------------------------------------------------------------------------
 
 extern u_char g_buffer[MAX_SNAPLEN];
-extern boolean g_verbose;
+extern bool g_verbose;
 
 
 //------------------------------------------------------------------------------
@@ -201,8 +199,8 @@ extern boolean g_verbose;
 extern void printf_verbose(const char *fmtstr, ...);
 
 // filter routines:
-extern boolean must_be_saved(struct pcap_pkthdr* pcap_header, const u_char* pcap_packet,
-							const FilterCriteria* filter, boolean* is_gtpu);
+extern bool must_be_saved(struct pcap_pkthdr* pcap_header, const u_char* pcap_packet,
+							const FilterCriteria* filter, bool* is_gtpu);
 
 // parse routines:
 extern ParserRetCode_t get_transport_offset(struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet, int* offsetTransportOut, int* ipprotOut);

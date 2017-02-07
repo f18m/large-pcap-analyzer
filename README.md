@@ -17,124 +17,165 @@ Some features of this utility:
 # Command line help
 
 ```
-    large-pcap-analyzer `[-h] [-v] [-a] [-w outfile.pcap] [-Y tcpdump_filter] [-G gtpu_tcpdump_filter] [-s string] somefile.pcap` ...
-    by Francesco Montorsi, (c) Nov 2014-2017
-    version 3.2
-    
-    Help:
-     -h                       this help
-     -v                       be verbose
-     -a                       open output file in APPEND mode instead of TRUNCATE
-     -w <outfile.pcap>        where to save the PCAP containing the results of filtering
-     -Y <tcpdump_filter>      the PCAP filter to apply when READING the pcap
-     -G <gtpu_tcpdump_filter> the PCAP filter to apply on inner GTPu frames (if any) to select packets to save in outfile.pcap
-     -s <search-string>       an string filter  to select packets to save in outfile.pcap
-     somefile.pcap            the large PCAP to analyze (you can provide more than 1 file)
-    Note that the -Y and -G options accept filters expressed in tcpdump/pcap_filters syntax.
-    See http://www.manpagez.com/man/7/pcap-filter/ for more info.
+	large_pcap_analyzer `[-h] [-v] [-a] [-w outfile.pcap] [-Y tcpdump_filter] [-G gtpu_tcpdump_filter] [-S string] [-T] somefile.pcap` ...
+	by Francesco Montorsi, (c) Nov 2014-2017
+	version 3.3
+	
+	Miscellaneous options:
+	 -h                       this help
+	 -v                       be verbose
+	 -t                       provide timestamp analysis on loaded packets
+	 -a                       open output file in APPEND mode instead of TRUNCATE
+	 -w <outfile.pcap>        where to save the PCAP containing the results of filtering
+	Filtering options:
+	 -Y <tcpdump_filter>      the PCAP filter to apply when READING the pcap
+	 -G <gtpu_tcpdump_filter> the PCAP filter to apply on inner GTPu frames (if any) to select packets to save in outfile.pcap
+	 -S <search-string>       an string filter  to select packets to save in outfile.pcap
+	 -T                       select packets part of valid TCP connections, i.e. connections having at least 1 SYN and 1 SYN/ACK
+	Inputs:
+	 somefile.pcap            the large PCAP to analyze (you can provide more than 1 file)
+	Note that the -Y and -G options accept filters expressed in tcpdump/pcap_filters syntax.
+	See http://www.manpagez.com/man/7/pcap-filter/ for more info.
 ```
 
-# Example run 1
+# Example run 1: time analysis
 
 In this example we are interested in understanding how many seconds of traffic are contained in a PCAP file:
 
 <tt>
-    $ ./large-pcap-analyzer large.pcap 
-
-    Analyzing PCAP file 'large.pcap'...
-    The PCAP file has size 1.95GiB = 2000MiB.
-    No PCAP filter set: all packets inside the PCAP will be loaded.
-    Processing took 5 seconds.
-    0M packets (844495 packets) were loaded from PCAP.
-    Last packet has a timestamp offset = 38.03sec = 0.63min = 0.01hours
-    Bytes loaded from PCAP = 941293kiB = 919MiB; total bytes on wire = 941293kiB = 919MiB
-      => the whole traffic has been captured in this PCAP!
-    Tcpreplay should replay this PCAP at an average of 193.34Mbps / 22205.13pps to respect PCAP timings!
+	$ large_pcap_analyzer -t large.pcap 
+	
+	No PCAP filter set: all packets inside the PCAP will be loaded.
+	8M packets (8751268 packets) were loaded from PCAP.
+	Tcpreplay should replay this PCAP at an average of 73.34Mbps / 14580.72pps to respect PCAP timings.
 </tt>
 
-Note that to load a 2GB PCAP only 5secs were required (on a 3GHz Intel Xeon CPU).
+Note that to load a 5.6GB PCAP only 1.9secs were required (on a 3GHz Intel Xeon CPU).
+This translates to a processing throughput of about 3GB/sec (in this mode).
 RAM memory consumption was about 4MB.
 
 
-# Example run 2
+# Example run 2: raw search
 
 In this example we are interested in selecting any packet that may contain inside it the string "youtube":
 
 <tt>
-    $ ./large-pcap-analyzer -v -s "youtube" -w out.pcap large2.pcap 
-
-    Analyzing PCAP file 'large2.pcap'...
-    The PCAP file has size 1.95GiB = 2000MiB.
-    No PCAP filter set: all packets inside the PCAP will be loaded.
-    Successfully opened output dump PCAP 'out.pcap' in APPEND mode
-    1M packets loaded from PCAP...
-    2M packets loaded from PCAP...
-    3M packets loaded from PCAP...
-    Processing took 10 seconds.
-    3M packets (3986339 packets) were loaded from PCAP.
-    1776 packets matched the search string 'youtube'.
-    1776 packets written to the PCAP dump file.
-    Last packet has a timestamp offset = 109.14sec = 1.82min = 0.03hours
-    Bytes loaded from PCAP = 1985713kiB = 1939MiB; total bytes on wire = 1985713kiB = 1939MiB
-      => the whole traffic has been captured in this PCAP!
-    Tcpreplay should replay this PCAP at an average of 142.14Mbps / 36526.14pps to respect PCAP timings!
+	$ large_pcap_analyzer -v -S "youtube" -w out.pcap bigcapture.pcap
+	
+	Analyzing PCAP file 'bigcapture.pcap'...
+	The PCAP file has size 5.50GiB = 5636MiB.
+	No PCAP filter set: all packets inside the PCAP will be loaded.
+	Successfully opened output PCAP 'out.pcap'
+	1M packets loaded from PCAP...
+	2M packets loaded from PCAP...
+	3M packets loaded from PCAP...
+	4M packets loaded from PCAP...
+	5M packets loaded from PCAP...
+	6M packets loaded from PCAP...
+	7M packets loaded from PCAP...
+	8M packets loaded from PCAP...
+	Processing took 5 seconds.
+	8M packets (8751268 packets) were loaded from PCAP.
+	0M packets (9825 packets) matched the filtering criteria (search string / PCAP filters / valid TCP streams filter) and were saved into output PCAP.
 </tt>
 
-Note that to load, search and extract packets from a 2GB PCAP only 10secs were required (on a 3GHz Intel Xeon CPU).
+Note that to load, search and extract packets from a 5.6GB PCAP only 5secs were required (on a 3GHz Intel Xeon CPU).
+This translates to a processing throughput of about 1GB/sec (in this mode).
 RAM memory consumption was about 4MB.
 
 
-# Example run 3
+# Example run 3: tcpdump-like
 
 In this example we are interested in selecting packets having a VLAN tag and directed or coming from an HTTP server:
 
 <tt>
-    $ ./large-pcap-analyzer -v -Y 'vlan and tcp port 80' -w out.pcap large3.pcap
-
-    Analyzing PCAP file 'large3.pcap'...
-    The PCAP file has size 1.95GiB = 2000MiB.
-    Successfully set PCAP filter: vlan and tcp port 80
-    Successfully opened output dump PCAP 'out.pcap' in APPEND mode
-    Processing took 1 seconds.
-    0M packets (865955 packets) were loaded from PCAP (matching PCAP filter).
-    865955 packets written to the PCAP dump file.
-    Last packet has a timestamp offset = 109.14sec = 1.82min = 0.03hours
-    Bytes loaded from PCAP = 629328kiB = 614MiB; total bytes on wire = 629328kiB = 614MiB
-      => the whole traffic has been captured in this PCAP!
-    Tcpreplay should replay this PCAP at an average of 45.04Mbps / 7934.63pps to respect PCAP timings!
+    $ large_pcap_analyzer -v -Y 'vlan and tcp port 80' -w out.pcap bigcapture.pcap
+    
+	Successfully compiled PCAP filter: vlan and tcp port 80
+	Analyzing PCAP file 'bigcapture.pcap'...
+	The PCAP file has size 5.50GiB = 5636MiB.
+	Successfully opened output PCAP 'out.pcap'
+	1M packets loaded from PCAP (matching PCAP filter)...
+	2M packets loaded from PCAP (matching PCAP filter)...
+	3M packets loaded from PCAP (matching PCAP filter)...
+	4M packets loaded from PCAP (matching PCAP filter)...
+	5M packets loaded from PCAP (matching PCAP filter)...
+	6M packets loaded from PCAP (matching PCAP filter)...
+	7M packets loaded from PCAP (matching PCAP filter)...
+	8M packets loaded from PCAP (matching PCAP filter)...
+	Processing took 3 seconds.
+	8M packets (8751268 packets) were loaded from PCAP (matching PCAP filter).
+	0M packets (1147 packets) matched the filtering criteria (search string / PCAP filters / valid TCP streams filter) and were saved into output PCAP.
 </tt>
 
 Note that to load, search and extract packets from a 2GB PCAP only 1sec was required (on a 3GHz Intel Xeon CPU).
 RAM memory consumption was about 4MB.
 
 
-# Example run 4
+# Example run 4: GTPu filtering
 
 In this example we are interested in selecting packets GTPu-encapsulated for a specific TCP flow between the
 IP address 1.1.1.1 <-> 1.1.1.2, on TCP ports 80 <-> 10000:
 
 <tt>
-    $ ./large-pcap-analyzer -v -G '(host 1.1.1.1 or host 1.1.1.2) and (port 80 or port 10000)' -w out.pcap large4.pcap
-
-    Analyzing PCAP file 'large4.pcap'...
-    The PCAP file has size 4.51GiB = 4613MiB.
-    No PCAP filter set: all packets inside the PCAP will be loaded.
-    Successfully compiled GTPu PCAP filter: (host 1.1.1.1 or host 1.1.1.2) and (port 80 or port 10000)
-    Successfully opened output PCAP 'out.pcap'
-    1M packets loaded from PCAP...
-    2M packets loaded from PCAP...
-    3M packets loaded from PCAP...
-    4M packets loaded from PCAP...
-    5M packets loaded from PCAP...
-    6M packets loaded from PCAP...
-    Processing took 3 seconds.
-    6M packets (6598850 packets) were loaded from PCAP.
-    6M packets (6587730 packets) loaded from PCAP are GTPu packets (99.8%).
-    222 packets matched the filtering criteria (search string / GTPu filter) and were saved into output PCAP.
-    Last packet has a timestamp offset = 600.19sec = 10.00min = 0.17hours
-    Bytes loaded from PCAP = 4621349kiB = 4513MiB; total bytes on wire = 4621349kiB = 4513MiB
-      => the whole traffic has been captured in this PCAP!
-    Tcpreplay should replay this PCAP at an average of 60.15Mbps / 10994.61pps to respect PCAP timings!
+    $ large_pcap_analyzer -v -G '(host 1.1.1.1 or host 1.1.1.2) and (port 80 or port 10000)' -w out.pcap bigcapture.pcap
+    
+	Successfully compiled GTPu PCAP filter: (host 1.1.1.1 or host 1.1.1.2) and (port 80 or port 10000)
+	Analyzing PCAP file 'bigcapture.pcap'...
+	The PCAP file has size 5.50GiB = 5636MiB.
+	Successfully opened output PCAP 'out.pcap'
+	1M packets loaded from PCAP...
+	2M packets loaded from PCAP...
+	3M packets loaded from PCAP...
+	4M packets loaded from PCAP...
+	5M packets loaded from PCAP...
+	6M packets loaded from PCAP...
+	7M packets loaded from PCAP...
+	8M packets loaded from PCAP...
+	Processing took 3 seconds.
+	8M packets (8751268 packets) were loaded from PCAP.
+	8M packets (8501213 packets) loaded from PCAP are GTPu packets (97.1%).
+	0M packets (0 packets) matched the filtering criteria (search string / PCAP filters / valid TCP streams filter) and were saved into output PCAP.
 </tt>
 
 
+# Example run 5: valid TCP stream filtering
+
+In this example we are interested in selecting packets of TCP connections that have at least 1 SYN and 1 SYN-ACK packet
+(if GTPu packets are found this analysis is done for the encapsulated TCP connections):
+
+<tt>
+    $ large_pcap_analyzer -v -T -w out.pcap bigcapture.pcap
+    
+	Analyzing PCAP file 'bigcapture.pcap'...
+	The PCAP file has size 5.50GiB = 5636MiB.
+	Successfully opened output PCAP 'out.pcap'
+	Valid TCP filtering enabled: performing first pass
+	1M packets loaded from PCAP...
+	2M packets loaded from PCAP...
+	3M packets loaded from PCAP...
+	4M packets loaded from PCAP...
+	5M packets loaded from PCAP...
+	6M packets loaded from PCAP...
+	7M packets loaded from PCAP...
+	8M packets loaded from PCAP...
+	Processing took 2 seconds.
+	Detected 1 invalid packets, 721214 non-TCP packets and 37436 valid TCP flows (on a total of 85878 flows).
+	Valid TCP filtering enabled: performing second pass
+	Analyzing PCAP file 'bigcapture.pcap'...
+	The PCAP file has size 5.50GiB = 5636MiB.
+	1M packets loaded from PCAP...
+	2M packets loaded from PCAP...
+	3M packets loaded from PCAP...
+	4M packets loaded from PCAP...
+	5M packets loaded from PCAP...
+	6M packets loaded from PCAP...
+	7M packets loaded from PCAP...
+	8M packets loaded from PCAP...
+	Processing took 2 seconds.
+	8M packets (8751268 packets) were loaded from PCAP.
+	0M packets (4498 packets) matched the filtering criteria (search string / PCAP filters / valid TCP streams filter) and were saved into output PCAP.
+</tt>
+
+Note that to load, search and extract packets from a 5.6GB PCAP only 4.5secs were required (on a 3GHz Intel Xeon CPU).
+This translates to a processing throughput of about 1GB/sec (in this mode).

@@ -43,11 +43,11 @@
 // Static Functions
 //------------------------------------------------------------------------------
 
-static boolean apply_filter_on_inner_ipv4_frame(struct pcap_pkthdr* pcap_header, const u_char* pcap_packet,
+static bool apply_filter_on_inner_ipv4_frame(struct pcap_pkthdr* pcap_header, const u_char* pcap_packet,
 												unsigned int inner_ipv4_offset, unsigned int inner_ipv4_len,
 												const struct bpf_program* gtpu_filter)
 {
-	boolean tosave = FALSE;
+	bool tosave = FALSE;
 	//memset(g_buffer, 0, sizeof(g_buffer));   // not actually needed
 
 	// rebuild the ethernet frame, copying the original one possibly
@@ -83,11 +83,9 @@ static boolean apply_filter_on_inner_ipv4_frame(struct pcap_pkthdr* pcap_header,
 // Global Functions
 //------------------------------------------------------------------------------
 
-boolean must_be_saved(struct pcap_pkthdr* pcap_header, const u_char* pcap_packet,
-					const FilterCriteria* filter, boolean* is_gtpu)
+bool must_be_saved(struct pcap_pkthdr* pcap_header, const u_char* pcap_packet,
+					const FilterCriteria* filter, bool* is_gtpu)
 {
-	boolean tosave = FALSE;
-
 	// string-search filter:
 
 	if (filter->string_filter)
@@ -97,14 +95,31 @@ boolean must_be_saved(struct pcap_pkthdr* pcap_header, const u_char* pcap_packet
 		memcpy(g_buffer, pcap_packet, len);
 		g_buffer[len] = '\0';
 
-		if (!memmem(g_buffer, len, filter->string_filter, strlen(filter->string_filter)))
-			tosave |= TRUE;
+		void* result = memmem(g_buffer, len, filter->string_filter, strlen(filter->string_filter));
+		if (result != NULL)
+			// string was found inside the packet!
+			return TRUE;   // useless to proceed!
 	}
 
 
-	// GTPu filter:
+	// PCAP capture filter:
 
-	if (filter->gtpu_filter_set || filter->valid_tcp_filter)
+	if (filter->capture_filter_set)
+	{
+		int ret = pcap_offline_filter(&filter->capture_filter, pcap_header, pcap_packet);
+		if (ret != 0)
+		{
+			// pcap_offline_filter returns
+			// zero if the packet doesn't match the filter and non-zero
+			// if the packet matches the filter.
+			return TRUE;   // useless to proceed!
+		}
+	}
+
+
+	// GTPu capture filter:
+
+	if (filter->gtpu_filter_set)
 	{
 		// is this a GTPu packet?
 		int offset = 0, ipver = 0;
@@ -115,23 +130,30 @@ boolean must_be_saved(struct pcap_pkthdr* pcap_header, const u_char* pcap_packet
 
 			// is there a GTPu PCAP filter?
 			int len = pcap_header->len - offset;
-			if (filter->gtpu_filter_set && offset > 0 && len > 0)
+			if (offset > 0 && len > 0)
 			{
-				tosave |= apply_filter_on_inner_ipv4_frame(pcap_header, pcap_packet, offset, len, &filter->gtpu_filter);
-			}
-
-			if (filter->valid_tcp_filter)
-			{
-				flow_hash_t tag = compute_flow_hash(pcap_header, pcap_packet, is_gtpu);
-
-				flow_map_t::const_iterator entry = filter->valid_tcp_firstpass_flows.find(tag);
-				if (entry != filter->valid_tcp_firstpass_flows.end() &&
-						entry->second == FLOW_FOUND_SYN_AND_SYNACK)
-					tosave |= TRUE;
+				// run the filter only on inner/encapsulated frame:
+				if (apply_filter_on_inner_ipv4_frame(pcap_header, pcap_packet, offset, len, &filter->gtpu_filter))
+					return TRUE;   // useless to proceed!
 			}
 		}
 	}
 
 
-	return tosave;
+	// valid-TCP-stream filter:
+
+	if (filter->valid_tcp_filter)
+	{
+		flow_hash_t hash = compute_flow_hash(pcap_header, pcap_packet, *is_gtpu);
+
+		if (hash != INVALID_FLOW_HASH)
+		{
+			flow_map_t::const_iterator entry = filter->valid_tcp_firstpass_flows.find(hash);
+			if (entry != filter->valid_tcp_firstpass_flows.end() &&
+					entry->second == FLOW_FOUND_SYN_AND_SYNACK)
+				return TRUE;   // useless to proceed! in the 1st run this connection was tagged as VALID
+		}
+	}
+
+	return FALSE;
 }

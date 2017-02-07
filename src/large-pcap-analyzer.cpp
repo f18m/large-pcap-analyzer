@@ -46,8 +46,8 @@
 //------------------------------------------------------------------------------
 
 u_char g_buffer[MAX_SNAPLEN];
-boolean g_verbose = FALSE;
-boolean g_timestamp_analysis = FALSE;
+bool g_verbose = FALSE;
+bool g_timestamp_analysis = FALSE;
 
 
 //------------------------------------------------------------------------------
@@ -92,9 +92,9 @@ static void print_help()
 	exit(0);
 }
 
-static boolean firstpass_process_pcap_handle_for_tcp_valid_streams(pcap_t* pcap_handle_in, FilterCriteria* filter, unsigned long* nvalidflowsOUT)
+static bool firstpass_process_pcap_handle_for_tcp_valid_streams(pcap_t* pcap_handle_in, FilterCriteria* filter, unsigned long* nvalidflowsOUT)
 {
-	unsigned long nloaded_pkts = 0, ninvalid_pkts = 0, nnottcp_pkts = 0, nvalid_streams = 0;
+	unsigned long nloaded_pkts = 0, ninvalid_pkts = 0, nnottcp_pkts = 0, nfound_streams = 0, nvalid_streams = 0;
 	struct timeval start, stop;
 	const u_char *pcap_packet;
 	struct pcap_pkthdr *pcap_header;
@@ -111,7 +111,7 @@ static boolean firstpass_process_pcap_handle_for_tcp_valid_streams(pcap_t* pcap_
 
 		// first, detect if this is a TCP SYN/SYN-ACK packet
 
-		boolean is_gtpu=FALSE, is_tcp_syn=FALSE, is_tcp_syn_ack=FALSE;
+		bool is_gtpu=FALSE, is_tcp_syn=FALSE, is_tcp_syn_ack=FALSE;
 		int offsetInnerTransport = 0, innerIpProt = 0;
 		ParserRetCode_t ret = get_gtpu_inner_transport_offset(pcap_header, pcap_packet, &offsetInnerTransport, &innerIpProt);
 		if (ret == GPRC_VALID_PKT)
@@ -154,8 +154,12 @@ static boolean firstpass_process_pcap_handle_for_tcp_valid_streams(pcap_t* pcap_
 				{
 					assert(!is_tcp_syn_ack);
 
-					// new connection, SYN packet found
-					filter->valid_tcp_firstpass_flows.insert( std::pair<flow_hash_t /* key */, FlowStatus_t /* value */>(tag, FLOW_FOUND_SYN) );
+					// SYN packet found, remember this:
+					std::pair<flow_map_t::iterator,bool> result =
+							filter->valid_tcp_firstpass_flows.insert( std::pair<flow_hash_t /* key */, FlowStatus_t /* value */>(tag, FLOW_FOUND_SYN) );
+
+					if (result.second)
+						nfound_streams++;		// this stream is a new connection
 				}
 				else if (is_tcp_syn_ack)
 				{
@@ -177,7 +181,8 @@ static boolean firstpass_process_pcap_handle_for_tcp_valid_streams(pcap_t* pcap_
 	gettimeofday(&stop, NULL);
 
 	printf_verbose("Processing took %i seconds.\n", (int) (stop.tv_sec - start.tv_sec));
-	printf_verbose("Detected %lu invalid packets, %lu non-TCP packets and %lu valid TCP flows.\n", ninvalid_pkts, nnottcp_pkts, nvalid_streams);
+	printf_verbose("Detected %lu invalid packets, %lu non-TCP packets and %lu valid TCP flows (on a total of %lu flows).\n",
+					ninvalid_pkts, nnottcp_pkts, nvalid_streams, nfound_streams);
 
 	if (nvalidflowsOUT)
 		*nvalidflowsOUT = nvalid_streams;
@@ -186,14 +191,14 @@ static boolean firstpass_process_pcap_handle_for_tcp_valid_streams(pcap_t* pcap_
 }
 
 
-static boolean process_pcap_handle(pcap_t* pcap_handle_in,
+static bool process_pcap_handle(pcap_t* pcap_handle_in,
 									const FilterCriteria* filter,
 									pcap_dumper_t* pcap_dumper,
 									unsigned long* nloadedOUT, unsigned long* nmatchingOUT)
 {
     unsigned long nloaded = 0, nmatching = 0, ngtpu = 0, nbytes_avail = 0, nbytes_orig = 0;
     struct timeval start, stop;
-    boolean first = TRUE;
+    bool first = TRUE;
 
     const u_char *pcap_packet;
     struct pcap_pkthdr *pcap_header;
@@ -210,8 +215,8 @@ static boolean process_pcap_handle(pcap_t* pcap_handle_in,
 
         // filter and save to output eventually
 
-        boolean is_gtpu = FALSE;
-        boolean tosave = must_be_saved(pcap_header, pcap_packet, filter, &is_gtpu);
+        bool is_gtpu = FALSE;
+        bool tosave = must_be_saved(pcap_header, pcap_packet, filter, &is_gtpu);
         if (tosave) {
             nmatching++;
 
@@ -249,10 +254,10 @@ static boolean process_pcap_handle(pcap_t* pcap_handle_in,
 
     if (pcap_dumper)
     {
-		if (filter->string_filter || filter->gtpu_filter_set || filter->valid_tcp_filter)
+		if (filter->capture_filter_set || filter->gtpu_filter_set || filter->string_filter || filter->valid_tcp_filter)
 		{
-			printf("%lu packets matched the filtering criteria (search string / GTPu filter / valid TCP streams filter) and were saved into output PCAP.\n",
-				   nmatching);
+			printf("%luM packets (%lu packets) matched the filtering criteria (search string / PCAP filters / valid TCP streams filter) and were saved into output PCAP.\n",
+					nmatching/MILLION, nmatching);
 		}
 		else
 		{
@@ -418,7 +423,7 @@ int pcap_compile_nopcap_with_err(int snaplen_arg, int linktype_arg,
 	return ret;
 }*/
 
-static boolean process_file(const char* infile, const char *outfile, boolean outfile_append,
+static bool process_file(const char* infile, const char *outfile, bool outfile_append,
 							FilterCriteria *filter,
 							unsigned long* nloadedOUT, unsigned long* nmatchingOUT)
 {
@@ -437,22 +442,8 @@ static boolean process_file(const char* infile, const char *outfile, boolean out
         return FALSE;
     }
     printf_verbose("Analyzing PCAP file '%s'...\n", infile);
-
     if (st.st_size)
-    {
     	printf_verbose("The PCAP file has size %.2fGiB = %luMiB.\n", (double)st.st_size/(double)GB, st.st_size/MB);
-    }
-
-    // PCAP capture filter
-    if (filter->capture_filter_set)
-    {
-        if (pcap_setfilter(pcap_handle_in, (struct bpf_program*) &filter->capture_filter) != 0) {
-            fprintf(stderr, "Couldn't install filter: %s\n", pcap_geterr(pcap_handle_in));
-            return FALSE;
-        }
-    }
-    else
-        printf("No PCAP filter set: all packets inside the PCAP will be loaded.\n");
 
 
     // open outfile
@@ -538,8 +529,8 @@ static boolean process_file(const char* infile, const char *outfile, boolean out
     return TRUE;
 }
 
-static boolean prepare_filter(FilterCriteria* out,
-								const char* pcap_filter_str, const char* gtpu_filter_str, const char* string_filter, boolean valid_tcp_filter)
+static bool prepare_filter(FilterCriteria* out,
+								const char* pcap_filter_str, const char* gtpu_filter_str, const char* string_filter, bool valid_tcp_filter)
 {
     // PCAP filter
     if (pcap_filter_str)
@@ -584,7 +575,7 @@ static boolean prepare_filter(FilterCriteria* out,
 int main(int argc, char **argv)
 {
     int opt;
-    boolean append = FALSE, valid_tcp_filter = FALSE;
+    bool append = FALSE, valid_tcp_filter = FALSE;
     char *outfile = NULL;
     char *pcap_filter = NULL;
     char *pcap_gtpu_filter = NULL;
