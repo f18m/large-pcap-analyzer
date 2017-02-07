@@ -289,8 +289,10 @@ GtpuParserRetCode get_gtpu_inner_frame_offset(struct pcap_pkthdr* pcap_header, c
 			uint16_t ext_size = (word & 0xff00) >> 8;
 			if (ext_size != 0)
 			{
+				uint16_t i;
+
 				ext_size = (ext_size << 1) - 2;
-				for (uint16_t i = 0; i < ext_size; i++)
+				for (i = 0; i < ext_size; i++)
 				{
 					gtp_payload+=2;
 				}
