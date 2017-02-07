@@ -153,19 +153,20 @@ boolean g_verbose = FALSE;
 
 void print_help()
 {
-    printf("%s [-w outfile.pcap] [-Y filter] [-s string] [-h] somefile.pcap ...\n", PACKAGE_NAME);
-    printf("by Francesco Montorsi, (c) Nov 2014\n");
+    printf("%s [-h] [-v] [-a] [-w outfile.pcap] [-Y tcpdump_filter] [-G gtpu_tcpdump_filter] [-s string] somefile.pcap ...\n", PACKAGE_NAME);
+    printf("by Francesco Montorsi, (c) Nov 2014-2017\n");
     printf("version %s\n\n", PACKAGE_VERSION);
     printf("Help:\n");
-    printf(" -h                    this help\n");
-    printf(" -v                    be verbose\n");
-    printf(" -a                    open output file in APPEND mode instead of TRUNCATE\n");
-    printf(" -w <outfile.pcap>     where to save the PCAP containing the results of filtering\n");
-    printf(" -Y <pcap-filter>      the PCAP filter to apply when READING the pcap\n");
-    printf(" -G <gtpu-pcap-filter> the PCAP filter to apply on inner GTPu frames (if any) to select packets to save in outfile.pcap\n");
-    printf(" -s <search-string>    an string filter  to select packets to save in outfile.pcap\n");
-    printf(" somefile.pcap         the large PCAP to analyze (you can provide more than 1 file)\n");
-    printf("Note that the -Y and -G options accept filters expressed in pcap_filters syntax. See http://www.manpagez.com/man/7/pcap-filter/ for more info.\n");
+    printf(" -h                       this help\n");
+    printf(" -v                       be verbose\n");
+    printf(" -a                       open output file in APPEND mode instead of TRUNCATE\n");
+    printf(" -w <outfile.pcap>        where to save the PCAP containing the results of filtering\n");
+    printf(" -Y <tcpdump_filter>      the PCAP filter to apply when READING the pcap\n");
+    printf(" -G <gtpu_tcpdump_filter> the PCAP filter to apply on inner GTPu frames (if any) to select packets to save in outfile.pcap\n");
+    printf(" -s <search-string>       an string filter  to select packets to save in outfile.pcap\n");
+    printf(" somefile.pcap            the large PCAP to analyze (you can provide more than 1 file)\n");
+    printf("Note that the -Y and -G options accept filters expressed in tcpdump/pcap_filters syntax.\n");
+    printf("See http://www.manpagez.com/man/7/pcap-filter/ for more info.\n");
     printf("\n");
     exit(0);
 }
