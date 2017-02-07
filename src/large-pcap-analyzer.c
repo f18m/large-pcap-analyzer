@@ -86,8 +86,8 @@ static void print_help()
 }
 
 static boolean process_pcap_handle(pcap_t* pcap_handle_in,
-							struct bpf_program* gtpu_filter, const char *search,
-							pcap_dumper_t* pcap_dumper, boolean pcapfilter_set,
+							const filter_criteria_t* filter,
+							pcap_dumper_t* pcap_dumper,
 							unsigned long* nloadedOUT, unsigned long* nmatchingOUT)
 {
     unsigned long nloaded = 0, nmatching = 0, ngtpu = 0, nbytes_avail = 0, nbytes_orig = 0;
@@ -98,7 +98,7 @@ static boolean process_pcap_handle(pcap_t* pcap_handle_in,
     struct pcap_pkthdr *pcap_header;
     struct pcap_pkthdr first_pcap_header, last_pcap_header;
 
-    const char* pcapfilter_desc = pcapfilter_set ? " (matching PCAP filter)" : "";
+    const char* pcapfilter_desc = filter->capture_filter_set ? " (matching PCAP filter)" : "";
 
     gettimeofday(&start, NULL);
     while (pcap_next_ex(pcap_handle_in, &pcap_header, &pcap_packet) > 0)
@@ -110,7 +110,7 @@ static boolean process_pcap_handle(pcap_t* pcap_handle_in,
         // filter and save to output eventually
 
         boolean is_gtpu = FALSE;
-        boolean tosave = must_be_saved(pcap_header, pcap_packet, search, gtpu_filter, &is_gtpu);
+        boolean tosave = must_be_saved(pcap_header, pcap_packet, filter, &is_gtpu);
         if (tosave) {
             nmatching++;
 
@@ -143,12 +143,12 @@ static boolean process_pcap_handle(pcap_t* pcap_handle_in,
     printf_verbose("%luM packets (%lu packets) were loaded from PCAP%s.\n",
             nloaded/MILLION, nloaded, pcapfilter_desc);
 
-    if (gtpu_filter)
+    if (filter->gtpu_filter_set)
     	// in this case, the GTPu parser was run and we have a stat about how many packets are GTPu
 		printf_verbose("%luM packets (%lu packets) loaded from PCAP%s are GTPu packets (%.1f%%).\n",
 						ngtpu/MILLION, ngtpu, pcapfilter_desc, (double)(100.0*(double)(ngtpu)/(double)(nloaded)));
 
-    if (search || gtpu_filter)
+    if (filter->string_filter || filter->gtpu_filter_set)
         printf("%lu packets matched the filtering criteria (search string / GTPu filter) and were saved into output PCAP.\n",
                nmatching);
     else
@@ -312,7 +312,7 @@ int pcap_compile_nopcap_with_err(int snaplen_arg, int linktype_arg,
 }*/
 
 static boolean process_file(const char* infile, const char *outfile, boolean outfile_append,
-							const char *filter, const char* gtpu_filter, const char *search,
+							const filter_criteria_t *filter,
 							unsigned long* nloadedOUT, unsigned long* nmatchingOUT)
 {
     pcap_t *pcap_handle_in = NULL;
@@ -340,34 +340,17 @@ static boolean process_file(const char* infile, const char *outfile, boolean out
 
 
     // PCAP filter
-    if (filter)
+    if (filter->capture_filter_set)
     {
-        if (pcap_compile(pcap_handle_in, &pcap_filter, filter, 0 /* optimize */, PCAP_NETMASK_UNKNOWN) != 0) {
-            fprintf(stderr, "Couldn't parse filter: %s\n", pcap_geterr(pcap_handle_in));
-            return FALSE;
-        }
-        if (pcap_setfilter(pcap_handle_in, &pcap_filter) != 0) {
+        if (pcap_setfilter(pcap_handle_in, &filter->capture_filter) != 0) {
             fprintf(stderr, "Couldn't install filter: %s\n", pcap_geterr(pcap_handle_in));
             return FALSE;
         }
 
-        printf("Successfully set PCAP filter: %s\n", filter);
+        printf("Successfully set PCAP filter\n");
     }
     else
         printf("No PCAP filter set: all packets inside the PCAP will be loaded.\n");
-
-
-    // GTPu PCAP filter
-    if (gtpu_filter)
-    {
-
-        if (pcap_compile_nopcap(MAX_SNAPLEN, DLT_EN10MB, &gtpu_pcap_filter, gtpu_filter, 0 /* optimize */, PCAP_NETMASK_UNKNOWN) != 0) {
-            fprintf(stderr, "Couldn't parse GTPu filter\n");
-            return FALSE;
-        }
-
-        printf("Successfully compiled GTPu PCAP filter: %s\n", gtpu_filter);
-    }
 
 
     // open outfile
@@ -396,10 +379,11 @@ static boolean process_file(const char* infile, const char *outfile, boolean out
     }
 
 
+
+
+
     // do the real job
-    if (!process_pcap_handle(pcap_handle_in, /* input file */
-    						gtpu_filter ? &gtpu_pcap_filter : NULL, search, /* filters */
-    						pcap_dumper, filter != NULL, nloadedOUT, nmatchingOUT)) /* misc */
+    if (!process_pcap_handle(pcap_handle_in, filter, pcap_dumper, nloadedOUT, nmatchingOUT))
         return FALSE;
 
 
@@ -413,6 +397,46 @@ static boolean process_file(const char* infile, const char *outfile, boolean out
     return TRUE;
 }
 
+static boolean prepare_filter(filter_criteria_t* out,
+								const char* pcap_filter_str, const char* gtpu_filter_str, const char* string_filter, boolean gtpu_valid_tcp_filter)
+{
+    // PCAP filter
+    if (pcap_filter_str)
+    {
+        if (pcap_compile_nopcap(MAX_SNAPLEN, DLT_EN10MB, &out->capture_filter, pcap_filter_str, 0 /* optimize */, PCAP_NETMASK_UNKNOWN) != 0) {
+            fprintf(stderr, "Couldn't parse PCAP filter\n");
+            return FALSE;
+        }
+
+        out->capture_filter_set = TRUE;
+        printf("Successfully compiled PCAP filter: %s\n", pcap_filter_str);
+    }
+    else
+        printf("No PCAP filter set: all packets inside the PCAP will be loaded.\n");
+
+
+    // GTPu PCAP filter
+    if (gtpu_filter_str)
+    {
+
+        if (pcap_compile_nopcap(MAX_SNAPLEN, DLT_EN10MB, &out->gtpu_filter, gtpu_filter_str, 0 /* optimize */, PCAP_NETMASK_UNKNOWN) != 0) {
+            fprintf(stderr, "Couldn't parse GTPu filter\n");
+            return FALSE;
+        }
+
+        out->gtpu_filter_set = TRUE;
+        printf("Successfully compiled GTPu PCAP filter: %s\n", gtpu_filter_str);
+    }
+
+
+    // other filters:
+
+    out->string_filter = string_filter;
+    out->gtpu_valid_tcp_filter = gtpu_valid_tcp_filter;
+
+
+    return TRUE;
+}
 
 //------------------------------------------------------------------------------
 // main: argument parsing
@@ -421,19 +445,22 @@ static boolean process_file(const char* infile, const char *outfile, boolean out
 int main(int argc, char **argv)
 {
     int opt;
-    boolean append = FALSE;
+    boolean append = FALSE, gtpu_valid_tcp_filter = FALSE;
     char *outfile = NULL;
     char *pcap_filter = NULL;
     char *pcap_gtpu_filter = NULL;
     char *search = NULL;
 
-    while ((opt = getopt(argc, argv, "vaw:Y:G:s:h")) != -1) {
+    while ((opt = getopt(argc, argv, "tvaw:Y:G:s:h")) != -1) {
         switch (opt) {
         case 'v':
 			g_verbose = TRUE;
 			break;
         case 'a':
             append = TRUE;
+            break;
+        case 't':
+        	gtpu_valid_tcp_filter = TRUE;
             break;
         case 'w':
             outfile = optarg;
@@ -468,6 +495,16 @@ int main(int argc, char **argv)
     }
 
 
+    filter_criteria_t filter;
+    memset(&filter, 0, sizeof(filter));
+    if (!prepare_filter(&filter, pcap_filter, pcap_gtpu_filter, search, gtpu_valid_tcp_filter))
+    {
+    	// error was already logged
+        return 1;
+    }
+
+
+
     // the last non-option arguments are the input filenames:
 
     if (optind >= argc || !argv[optind])
@@ -485,7 +522,7 @@ int main(int argc, char **argv)
         }
 
         // just 1 input file
-        if (!process_file(argv[optind], outfile, append, pcap_filter, pcap_gtpu_filter, search, NULL, NULL))
+        if (!process_file(argv[optind], outfile, append, &filter, NULL, NULL))
             return 2;
     }
     else
@@ -503,7 +540,7 @@ int main(int argc, char **argv)
                 continue;
             }
 
-            if (!process_file(argv[currfile], outfile, append, pcap_filter, pcap_gtpu_filter, search, &nloaded, &nmatching))
+            if (!process_file(argv[currfile], outfile, append, &filter, &nloaded, &nmatching))
                 return 2;
             printf("\n");
         }

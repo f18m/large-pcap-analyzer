@@ -37,7 +37,7 @@
 // Static Functions
 //------------------------------------------------------------------------------
 
-GtpuParserRetCode get_gtpu_inner_frame_offset(struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet, int* offsetOut)
+static GtpuParserRetCode_t get_gtpu_inner_frame_offset(struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet, int* offsetOut)
 {
 	unsigned int offset = 0;
 #ifdef DEBUG
@@ -61,9 +61,9 @@ GtpuParserRetCode get_gtpu_inner_frame_offset(struct pcap_pkthdr* pcap_header, c
 
 	while (ETHERTYPE_IS_VLAN(eth_type) && offset < pcap_header->len)
 	{
-		const Ether80211q* qType = (const Ether80211q*) (pcap_packet + offset);
+		const ether80211q_t* qType = (const ether80211q_t*) (pcap_packet + offset);
 		eth_type = ntohs(qType->protoType);
-		offset += sizeof(Ether80211q);
+		offset += sizeof(ether80211q_t);
 	}
 
 	if (eth_type != ETH_P_IP)
@@ -180,8 +180,9 @@ GtpuParserRetCode get_gtpu_inner_frame_offset(struct pcap_pkthdr* pcap_header, c
 	return GPRC_VALID_GTPU_PKT;
 }
 
-boolean apply_filter_on_inner_ipv4_frame(struct pcap_pkthdr* pcap_header, const u_char* pcap_packet,
-		  	  	  	  	  	  	  	  unsigned int inner_ipv4_offset, unsigned int inner_ipv4_len, struct bpf_program* gtpu_filter)
+static boolean apply_filter_on_inner_ipv4_frame(struct pcap_pkthdr* pcap_header, const u_char* pcap_packet,
+												unsigned int inner_ipv4_offset, unsigned int inner_ipv4_len,
+												const struct bpf_program* gtpu_filter)
 {
 	boolean tosave = FALSE;
 	//memset(g_buffer, 0, sizeof(g_buffer));   // not actually needed
@@ -220,38 +221,38 @@ boolean apply_filter_on_inner_ipv4_frame(struct pcap_pkthdr* pcap_header, const 
 //------------------------------------------------------------------------------
 
 boolean must_be_saved(struct pcap_pkthdr* pcap_header, const u_char* pcap_packet,
-					  const char *search, struct bpf_program* gtpu_filter, boolean* is_gtpu)
+					const filter_criteria_t* filter, boolean* is_gtpu)
 {
 	boolean tosave = FALSE;
 
 	// string-search filter:
 
-	if (search)
+	if (filter->string_filter)
 	{
 		unsigned int len = MIN(pcap_header->len, MAX_PACKET_LEN);
 
 		memcpy(g_buffer, pcap_packet, len);
 		g_buffer[len] = '\0';
 
-		if (!memmem(g_buffer, len, search, strlen(search)))
+		if (!memmem(g_buffer, len, filter->string_filter, strlen(filter->string_filter)))
 			tosave |= TRUE;
 	}
 
 
 	// GTPu filter:
 
-	if (gtpu_filter)
+	if (filter->gtpu_filter_set)
 	{
 		// is this a GTPu packet?
-		int offset;
-		GtpuParserRetCode errcode = get_gtpu_inner_frame_offset(pcap_header, pcap_packet, &offset);
+		int offset = 0;
+		GtpuParserRetCode_t errcode = get_gtpu_inner_frame_offset(pcap_header, pcap_packet, &offset);
 		if (is_gtpu && errcode == GPRC_VALID_GTPU_PKT)
 			*is_gtpu = TRUE;
 
 		int len = pcap_header->len - offset;
 		if (offset > 0 && len > 0)
 		{
-			tosave |= apply_filter_on_inner_ipv4_frame(pcap_header, pcap_packet, offset, len, gtpu_filter);
+			tosave |= apply_filter_on_inner_ipv4_frame(pcap_header, pcap_packet, offset, len, &filter->gtpu_filter);
 		}
 	}
 

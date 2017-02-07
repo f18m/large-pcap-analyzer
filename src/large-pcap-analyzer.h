@@ -126,13 +126,26 @@ typedef enum
 	GPRC_NOT_GTPU_PKT = -1,
 	GPRC_TOO_SHORT_PKT = -2,
 	GPRC_INVALID_PKT = -3,
-} GtpuParserRetCode;
+} GtpuParserRetCode_t;
 
 typedef struct
 {
 	uint16_t vlanId;			// in NETWORK order
 	uint16_t protoType;
-} __attribute__((packed)) Ether80211q;
+} __attribute__((packed)) ether80211q_t;
+
+typedef struct
+{
+	struct bpf_program capture_filter;
+	boolean capture_filter_set;
+
+	struct bpf_program gtpu_filter;
+	boolean gtpu_filter_set;
+
+	const char* string_filter;
+	boolean gtpu_valid_tcp_filter;
+} __attribute__((packed)) filter_criteria_t;
+
 
 // stuff coming from http://lxr.free-electrons.com/source/include/net/gtp.h
 
@@ -158,6 +171,6 @@ extern boolean g_verbose;
 
 extern void printf_verbose(const char *fmtstr, ...);
 extern boolean must_be_saved(struct pcap_pkthdr* pcap_header, const u_char* pcap_packet,
-							const char *search, struct bpf_program* gtpu_filter, boolean* is_gtpu);
+							const filter_criteria_t* filter, boolean* is_gtpu);
 
 #endif
