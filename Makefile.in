@@ -105,11 +105,12 @@ PROGRAMS = $(bin_PROGRAMS)
 am__dirstamp = $(am__leading_dot)dirstamp
 am_large_pcap_analyzer_OBJECTS =  \
 	src/large_pcap_analyzer-large-pcap-analyzer.$(OBJEXT) \
-	src/large_pcap_analyzer-filter.$(OBJEXT)
+	src/large_pcap_analyzer-filter.$(OBJEXT) \
+	src/large_pcap_analyzer-parse.$(OBJEXT)
 large_pcap_analyzer_OBJECTS = $(am_large_pcap_analyzer_OBJECTS)
 large_pcap_analyzer_LDADD = $(LDADD)
-large_pcap_analyzer_LINK = $(CCLD) $(large_pcap_analyzer_CFLAGS) \
-	$(CFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
+large_pcap_analyzer_LINK = $(CXXLD) $(large_pcap_analyzer_CXXFLAGS) \
+	$(CXXFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -130,18 +131,19 @@ AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
 am__v_lt_0 = --silent
 am__v_lt_1 = 
-COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
-	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
-AM_V_CC = $(am__v_CC_@AM_V@)
-am__v_CC_ = $(am__v_CC_@AM_DEFAULT_V@)
-am__v_CC_0 = @echo "  CC      " $@;
-am__v_CC_1 = 
-CCLD = $(CC)
-LINK = $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
-AM_V_CCLD = $(am__v_CCLD_@AM_V@)
-am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
-am__v_CCLD_0 = @echo "  CCLD    " $@;
-am__v_CCLD_1 = 
+CXXCOMPILE = $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
+	$(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS)
+AM_V_CXX = $(am__v_CXX_@AM_V@)
+am__v_CXX_ = $(am__v_CXX_@AM_DEFAULT_V@)
+am__v_CXX_0 = @echo "  CXX     " $@;
+am__v_CXX_1 = 
+CXXLD = $(CXX)
+CXXLINK = $(CXXLD) $(AM_CXXFLAGS) $(CXXFLAGS) $(AM_LDFLAGS) $(LDFLAGS) \
+	-o $@
+AM_V_CXXLD = $(am__v_CXXLD_@AM_V@)
+am__v_CXXLD_ = $(am__v_CXXLD_@AM_DEFAULT_V@)
+am__v_CXXLD_0 = @echo "  CXXLD   " $@;
+am__v_CXXLD_1 = 
 SOURCES = $(large_pcap_analyzer_SOURCES)
 DIST_SOURCES = $(large_pcap_analyzer_SOURCES)
 am__can_run_installinfo = \
@@ -201,6 +203,9 @@ CCDEPMODE = @CCDEPMODE@
 CFLAGS = @CFLAGS@
 CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
+CXX = @CXX@
+CXXDEPMODE = @CXXDEPMODE@
+CXXFLAGS = @CXXFLAGS@
 CYGPATH_W = @CYGPATH_W@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
@@ -239,6 +244,7 @@ abs_srcdir = @abs_srcdir@
 abs_top_builddir = @abs_top_builddir@
 abs_top_srcdir = @abs_top_srcdir@
 ac_ct_CC = @ac_ct_CC@
+ac_ct_CXX = @ac_ct_CXX@
 am__include = @am__include@
 am__leading_dot = @am__leading_dot@
 am__quote = @am__quote@
@@ -280,18 +286,16 @@ top_srcdir = @top_srcdir@
 
 # avoid warnings about this packet not being in GNU style:
 AUTOMAKE_OPTIONS = foreign subdir-objects
-large_pcap_analyzer_SOURCES = src/large-pcap-analyzer.c src/filter.c
-common_flags = -std=c99  -Wall -Wextra 
+large_pcap_analyzer_SOURCES = src/large-pcap-analyzer.cpp src/filter.cpp src/parse.cpp
+common_flags = -Wall -Wextra -Werror
 
 # useful for debug builds:
-#large_pcap_analyzer_CFLAGS = $(AM_CFLAGS) $(common_flags) -g -O0 -DDEBUG
-
-# release builds:
-large_pcap_analyzer_CFLAGS = $(AM_CFLAGS) $(common_flags) -O3
+large_pcap_analyzer_CFLAGS = $(AM_CFLAGS) $(common_flags) -g -O0 -DDEBUG
+large_pcap_analyzer_CXXFLAGS = $(AM_CFLAGS) $(common_flags) -g -O0 -DDEBUG
 all: all-am
 
 .SUFFIXES:
-.SUFFIXES: .c .o .obj
+.SUFFIXES: .cpp .o .obj
 am--refresh: Makefile
 	@:
 $(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
@@ -392,10 +396,12 @@ src/large_pcap_analyzer-large-pcap-analyzer.$(OBJEXT):  \
 	src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
 src/large_pcap_analyzer-filter.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
+src/large_pcap_analyzer-parse.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
 
 large_pcap_analyzer$(EXEEXT): $(large_pcap_analyzer_OBJECTS) $(large_pcap_analyzer_DEPENDENCIES) $(EXTRA_large_pcap_analyzer_DEPENDENCIES) 
 	@rm -f large_pcap_analyzer$(EXEEXT)
-	$(AM_V_CCLD)$(large_pcap_analyzer_LINK) $(large_pcap_analyzer_OBJECTS) $(large_pcap_analyzer_LDADD) $(LIBS)
+	$(AM_V_CXXLD)$(large_pcap_analyzer_LINK) $(large_pcap_analyzer_OBJECTS) $(large_pcap_analyzer_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -406,50 +412,65 @@ distclean-compile:
 
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/large_pcap_analyzer-filter.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/large_pcap_analyzer-large-pcap-analyzer.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/large_pcap_analyzer-parse.Po@am__quote@
 
-.c.o:
-@am__fastdepCC_TRUE@	$(AM_V_CC)depbase=`echo $@ | sed 's|[^/]*$$|$(DEPDIR)/&|;s|\.o$$||'`;\
-@am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $$depbase.Tpo -c -o $@ $< &&\
-@am__fastdepCC_TRUE@	$(am__mv) $$depbase.Tpo $$depbase.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(COMPILE) -c -o $@ $<
+.cpp.o:
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)depbase=`echo $@ | sed 's|[^/]*$$|$(DEPDIR)/&|;s|\.o$$||'`;\
+@am__fastdepCXX_TRUE@	$(CXXCOMPILE) -MT $@ -MD -MP -MF $$depbase.Tpo -c -o $@ $< &&\
+@am__fastdepCXX_TRUE@	$(am__mv) $$depbase.Tpo $$depbase.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXXCOMPILE) -c -o $@ $<
 
-.c.obj:
-@am__fastdepCC_TRUE@	$(AM_V_CC)depbase=`echo $@ | sed 's|[^/]*$$|$(DEPDIR)/&|;s|\.obj$$||'`;\
-@am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $$depbase.Tpo -c -o $@ `$(CYGPATH_W) '$<'` &&\
-@am__fastdepCC_TRUE@	$(am__mv) $$depbase.Tpo $$depbase.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(COMPILE) -c -o $@ `$(CYGPATH_W) '$<'`
+.cpp.obj:
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)depbase=`echo $@ | sed 's|[^/]*$$|$(DEPDIR)/&|;s|\.obj$$||'`;\
+@am__fastdepCXX_TRUE@	$(CXXCOMPILE) -MT $@ -MD -MP -MF $$depbase.Tpo -c -o $@ `$(CYGPATH_W) '$<'` &&\
+@am__fastdepCXX_TRUE@	$(am__mv) $$depbase.Tpo $$depbase.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXXCOMPILE) -c -o $@ `$(CYGPATH_W) '$<'`
 
-src/large_pcap_analyzer-large-pcap-analyzer.o: src/large-pcap-analyzer.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(large_pcap_analyzer_CFLAGS) $(CFLAGS) -MT src/large_pcap_analyzer-large-pcap-analyzer.o -MD -MP -MF src/$(DEPDIR)/large_pcap_analyzer-large-pcap-analyzer.Tpo -c -o src/large_pcap_analyzer-large-pcap-analyzer.o `test -f 'src/large-pcap-analyzer.c' || echo '$(srcdir)/'`src/large-pcap-analyzer.c
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) src/$(DEPDIR)/large_pcap_analyzer-large-pcap-analyzer.Tpo src/$(DEPDIR)/large_pcap_analyzer-large-pcap-analyzer.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='src/large-pcap-analyzer.c' object='src/large_pcap_analyzer-large-pcap-analyzer.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(large_pcap_analyzer_CFLAGS) $(CFLAGS) -c -o src/large_pcap_analyzer-large-pcap-analyzer.o `test -f 'src/large-pcap-analyzer.c' || echo '$(srcdir)/'`src/large-pcap-analyzer.c
+src/large_pcap_analyzer-large-pcap-analyzer.o: src/large-pcap-analyzer.cpp
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(large_pcap_analyzer_CXXFLAGS) $(CXXFLAGS) -MT src/large_pcap_analyzer-large-pcap-analyzer.o -MD -MP -MF src/$(DEPDIR)/large_pcap_analyzer-large-pcap-analyzer.Tpo -c -o src/large_pcap_analyzer-large-pcap-analyzer.o `test -f 'src/large-pcap-analyzer.cpp' || echo '$(srcdir)/'`src/large-pcap-analyzer.cpp
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) src/$(DEPDIR)/large_pcap_analyzer-large-pcap-analyzer.Tpo src/$(DEPDIR)/large_pcap_analyzer-large-pcap-analyzer.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='src/large-pcap-analyzer.cpp' object='src/large_pcap_analyzer-large-pcap-analyzer.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(large_pcap_analyzer_CXXFLAGS) $(CXXFLAGS) -c -o src/large_pcap_analyzer-large-pcap-analyzer.o `test -f 'src/large-pcap-analyzer.cpp' || echo '$(srcdir)/'`src/large-pcap-analyzer.cpp
 
-src/large_pcap_analyzer-large-pcap-analyzer.obj: src/large-pcap-analyzer.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(large_pcap_analyzer_CFLAGS) $(CFLAGS) -MT src/large_pcap_analyzer-large-pcap-analyzer.obj -MD -MP -MF src/$(DEPDIR)/large_pcap_analyzer-large-pcap-analyzer.Tpo -c -o src/large_pcap_analyzer-large-pcap-analyzer.obj `if test -f 'src/large-pcap-analyzer.c'; then $(CYGPATH_W) 'src/large-pcap-analyzer.c'; else $(CYGPATH_W) '$(srcdir)/src/large-pcap-analyzer.c'; fi`
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) src/$(DEPDIR)/large_pcap_analyzer-large-pcap-analyzer.Tpo src/$(DEPDIR)/large_pcap_analyzer-large-pcap-analyzer.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='src/large-pcap-analyzer.c' object='src/large_pcap_analyzer-large-pcap-analyzer.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(large_pcap_analyzer_CFLAGS) $(CFLAGS) -c -o src/large_pcap_analyzer-large-pcap-analyzer.obj `if test -f 'src/large-pcap-analyzer.c'; then $(CYGPATH_W) 'src/large-pcap-analyzer.c'; else $(CYGPATH_W) '$(srcdir)/src/large-pcap-analyzer.c'; fi`
+src/large_pcap_analyzer-large-pcap-analyzer.obj: src/large-pcap-analyzer.cpp
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(large_pcap_analyzer_CXXFLAGS) $(CXXFLAGS) -MT src/large_pcap_analyzer-large-pcap-analyzer.obj -MD -MP -MF src/$(DEPDIR)/large_pcap_analyzer-large-pcap-analyzer.Tpo -c -o src/large_pcap_analyzer-large-pcap-analyzer.obj `if test -f 'src/large-pcap-analyzer.cpp'; then $(CYGPATH_W) 'src/large-pcap-analyzer.cpp'; else $(CYGPATH_W) '$(srcdir)/src/large-pcap-analyzer.cpp'; fi`
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) src/$(DEPDIR)/large_pcap_analyzer-large-pcap-analyzer.Tpo src/$(DEPDIR)/large_pcap_analyzer-large-pcap-analyzer.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='src/large-pcap-analyzer.cpp' object='src/large_pcap_analyzer-large-pcap-analyzer.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(large_pcap_analyzer_CXXFLAGS) $(CXXFLAGS) -c -o src/large_pcap_analyzer-large-pcap-analyzer.obj `if test -f 'src/large-pcap-analyzer.cpp'; then $(CYGPATH_W) 'src/large-pcap-analyzer.cpp'; else $(CYGPATH_W) '$(srcdir)/src/large-pcap-analyzer.cpp'; fi`
 
-src/large_pcap_analyzer-filter.o: src/filter.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(large_pcap_analyzer_CFLAGS) $(CFLAGS) -MT src/large_pcap_analyzer-filter.o -MD -MP -MF src/$(DEPDIR)/large_pcap_analyzer-filter.Tpo -c -o src/large_pcap_analyzer-filter.o `test -f 'src/filter.c' || echo '$(srcdir)/'`src/filter.c
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) src/$(DEPDIR)/large_pcap_analyzer-filter.Tpo src/$(DEPDIR)/large_pcap_analyzer-filter.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='src/filter.c' object='src/large_pcap_analyzer-filter.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(large_pcap_analyzer_CFLAGS) $(CFLAGS) -c -o src/large_pcap_analyzer-filter.o `test -f 'src/filter.c' || echo '$(srcdir)/'`src/filter.c
+src/large_pcap_analyzer-filter.o: src/filter.cpp
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(large_pcap_analyzer_CXXFLAGS) $(CXXFLAGS) -MT src/large_pcap_analyzer-filter.o -MD -MP -MF src/$(DEPDIR)/large_pcap_analyzer-filter.Tpo -c -o src/large_pcap_analyzer-filter.o `test -f 'src/filter.cpp' || echo '$(srcdir)/'`src/filter.cpp
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) src/$(DEPDIR)/large_pcap_analyzer-filter.Tpo src/$(DEPDIR)/large_pcap_analyzer-filter.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='src/filter.cpp' object='src/large_pcap_analyzer-filter.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(large_pcap_analyzer_CXXFLAGS) $(CXXFLAGS) -c -o src/large_pcap_analyzer-filter.o `test -f 'src/filter.cpp' || echo '$(srcdir)/'`src/filter.cpp
 
-src/large_pcap_analyzer-filter.obj: src/filter.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(large_pcap_analyzer_CFLAGS) $(CFLAGS) -MT src/large_pcap_analyzer-filter.obj -MD -MP -MF src/$(DEPDIR)/large_pcap_analyzer-filter.Tpo -c -o src/large_pcap_analyzer-filter.obj `if test -f 'src/filter.c'; then $(CYGPATH_W) 'src/filter.c'; else $(CYGPATH_W) '$(srcdir)/src/filter.c'; fi`
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) src/$(DEPDIR)/large_pcap_analyzer-filter.Tpo src/$(DEPDIR)/large_pcap_analyzer-filter.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='src/filter.c' object='src/large_pcap_analyzer-filter.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(large_pcap_analyzer_CFLAGS) $(CFLAGS) -c -o src/large_pcap_analyzer-filter.obj `if test -f 'src/filter.c'; then $(CYGPATH_W) 'src/filter.c'; else $(CYGPATH_W) '$(srcdir)/src/filter.c'; fi`
+src/large_pcap_analyzer-filter.obj: src/filter.cpp
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(large_pcap_analyzer_CXXFLAGS) $(CXXFLAGS) -MT src/large_pcap_analyzer-filter.obj -MD -MP -MF src/$(DEPDIR)/large_pcap_analyzer-filter.Tpo -c -o src/large_pcap_analyzer-filter.obj `if test -f 'src/filter.cpp'; then $(CYGPATH_W) 'src/filter.cpp'; else $(CYGPATH_W) '$(srcdir)/src/filter.cpp'; fi`
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) src/$(DEPDIR)/large_pcap_analyzer-filter.Tpo src/$(DEPDIR)/large_pcap_analyzer-filter.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='src/filter.cpp' object='src/large_pcap_analyzer-filter.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(large_pcap_analyzer_CXXFLAGS) $(CXXFLAGS) -c -o src/large_pcap_analyzer-filter.obj `if test -f 'src/filter.cpp'; then $(CYGPATH_W) 'src/filter.cpp'; else $(CYGPATH_W) '$(srcdir)/src/filter.cpp'; fi`
+
+src/large_pcap_analyzer-parse.o: src/parse.cpp
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(large_pcap_analyzer_CXXFLAGS) $(CXXFLAGS) -MT src/large_pcap_analyzer-parse.o -MD -MP -MF src/$(DEPDIR)/large_pcap_analyzer-parse.Tpo -c -o src/large_pcap_analyzer-parse.o `test -f 'src/parse.cpp' || echo '$(srcdir)/'`src/parse.cpp
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) src/$(DEPDIR)/large_pcap_analyzer-parse.Tpo src/$(DEPDIR)/large_pcap_analyzer-parse.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='src/parse.cpp' object='src/large_pcap_analyzer-parse.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(large_pcap_analyzer_CXXFLAGS) $(CXXFLAGS) -c -o src/large_pcap_analyzer-parse.o `test -f 'src/parse.cpp' || echo '$(srcdir)/'`src/parse.cpp
+
+src/large_pcap_analyzer-parse.obj: src/parse.cpp
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(large_pcap_analyzer_CXXFLAGS) $(CXXFLAGS) -MT src/large_pcap_analyzer-parse.obj -MD -MP -MF src/$(DEPDIR)/large_pcap_analyzer-parse.Tpo -c -o src/large_pcap_analyzer-parse.obj `if test -f 'src/parse.cpp'; then $(CYGPATH_W) 'src/parse.cpp'; else $(CYGPATH_W) '$(srcdir)/src/parse.cpp'; fi`
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) src/$(DEPDIR)/large_pcap_analyzer-parse.Tpo src/$(DEPDIR)/large_pcap_analyzer-parse.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='src/parse.cpp' object='src/large_pcap_analyzer-parse.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(large_pcap_analyzer_CXXFLAGS) $(CXXFLAGS) -c -o src/large_pcap_analyzer-parse.obj `if test -f 'src/parse.cpp'; then $(CYGPATH_W) 'src/parse.cpp'; else $(CYGPATH_W) '$(srcdir)/src/parse.cpp'; fi`
 
 ID: $(am__tagged_files)
 	$(am__define_uniq_tagged_files); mkid -fID $$unique
@@ -805,6 +826,9 @@ uninstall-am: uninstall-binPROGRAMS
 
 .PRECIOUS: Makefile
 
+
+# release builds:
+#large_pcap_analyzer_CFLAGS = $(AM_CFLAGS) $(common_flags) -O3
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

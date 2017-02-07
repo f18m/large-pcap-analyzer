@@ -8,9 +8,11 @@ AM_INIT_AUTOMAKE
 
 # do not get the -g -O2 default CFLAGS:
 : ${CFLAGS=""}
+: ${CXXFLAGS=""}
 
 # Checks for programs.
 AC_PROG_CC
+AC_PROG_CXX
 AC_PROG_INSTALL
 AC_PROG_MAKE_SET
 

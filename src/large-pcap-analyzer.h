@@ -14,6 +14,7 @@
  * v3.1 = first version released in Github
  * v3.2 = reworked command-line arguments to match those of "tshark" command line utility;
  *        added support for GTPu-filtering (-G option)
+ * v3.3 = added filtering for valid GTPu-encapsulated TCP connections (-T option)
  *
  *
  * LICENSE:
@@ -39,7 +40,9 @@
 // Includes
 //------------------------------------------------------------------------------
 
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE         // to have memmem
+#endif
 
 #include <stdint.h>
 #include <stdio.h>
@@ -51,11 +54,7 @@
 #include <sys/stat.h>
 #include <assert.h>
 #include <stdarg.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <netinet/if_ether.h> /* includes net/ethernet.h */
-#include <netinet/ip.h> /* superset of previous */
-#include <linux/udp.h>
+#include <linux/types.h>
 
 // libpcap dependency:
 // NOTE: in version 1.7.x there is no pcap/pcap.h, just a pcap.h apparently:
@@ -63,6 +62,7 @@
 #include <pcap.h>
 
 #include "config.h"
+#include <map>
 
 
 //------------------------------------------------------------------------------
@@ -109,7 +109,8 @@
 // Types
 //------------------------------------------------------------------------------
 
-typedef int   boolean;
+typedef int        boolean;
+typedef uint64_t   flow_hash_t;
 
 #ifndef TRUE
     #define TRUE        1
@@ -121,12 +122,20 @@ typedef int   boolean;
 
 typedef enum
 {
-	GPRC_VALID_GTPU_PKT = 0,
+	GPRC_VALID_PKT = 0,
 
 	GPRC_NOT_GTPU_PKT = -1,
 	GPRC_TOO_SHORT_PKT = -2,
 	GPRC_INVALID_PKT = -3,
-} GtpuParserRetCode_t;
+} ParserRetCode_t;
+
+typedef enum
+{
+	FLOW_FOUND_SYN,
+	FLOW_FOUND_SYN_AND_SYNACK,
+} FlowStatus_t;
+
+typedef std::map<flow_hash_t /* key */, FlowStatus_t /* value */>     flow_map_t;
 
 typedef struct
 {
@@ -134,27 +143,43 @@ typedef struct
 	uint16_t protoType;
 } __attribute__((packed)) ether80211q_t;
 
-typedef struct
+class filter_criteria_t
 {
-	struct bpf_program capture_filter;
-	boolean capture_filter_set;
+public:
+	filter_criteria_t()
+	{
+	    memset(&capture_filter, 0, sizeof(capture_filter));
+	    memset(&gtpu_filter, 0, sizeof(gtpu_filter));
+	    capture_filter_set = FALSE;
+	    gtpu_filter_set = FALSE;
+	    valid_tcp_filter = FALSE;
+	    string_filter = NULL;
+	}
 
-	struct bpf_program gtpu_filter;
-	boolean gtpu_filter_set;
 
-	const char* string_filter;
-	boolean gtpu_valid_tcp_filter;
-} __attribute__((packed)) filter_criteria_t;
+	struct bpf_program 			capture_filter;
+	boolean 					capture_filter_set;
+
+	struct bpf_program 			gtpu_filter;
+	boolean 					gtpu_filter_set;
+
+	const char* 				string_filter;
+
+	boolean 					valid_tcp_filter;
+	flow_map_t 					valid_tcp_firstpass_flows;			// contains the result of the 1st pass
+
+} ;
 
 
 // stuff coming from http://lxr.free-electrons.com/source/include/net/gtp.h
 
 struct gtp1_header {    /* According to 3GPP TS 29.060. */
-        __u8    flags;
-        __u8    type;
-        __be16  length;
-        __be32  tid;
+	__u8    flags;
+	__u8    type;
+	__be16  length;
+	__be32  tid;
 } __attribute__ ((packed));
+
 
 
 //------------------------------------------------------------------------------
@@ -170,7 +195,15 @@ extern boolean g_verbose;
 //------------------------------------------------------------------------------
 
 extern void printf_verbose(const char *fmtstr, ...);
+
+// filter routines:
 extern boolean must_be_saved(struct pcap_pkthdr* pcap_header, const u_char* pcap_packet,
 							const filter_criteria_t* filter, boolean* is_gtpu);
+
+// parse routines:
+extern ParserRetCode_t get_gtpu_inner_ip_offset(struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet, int* offsetIpInner, int* ipver);
+extern ParserRetCode_t get_gtpu_inner_transport_offset(struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet, int* offsetTransportInner, int* ipprotInner);
+
+extern flow_hash_t compute_flow_hash(struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet, bool is_gtpu);
 
 #endif

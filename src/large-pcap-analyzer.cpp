@@ -1,16 +1,10 @@
 /*
- * large-pcap-analyzer
+ * large-pcap-analyzer.cpp
  *
  * Author: Francesco Montorsi
  * Website: https://github.com/f18m/large-pcap-analyzer
  * Created: Nov 2014
  * Last Modified: Jan 2017
- *
- * History:
- *
- * v3.1 = first version released in Github
- * v3.2 = reworked command-line arguments to match those of "tshark" command line utility;
- *        added support for GTPu-filtering (-G option)
  *
  *
  * LICENSE:
@@ -38,6 +32,14 @@
 
 #include "large-pcap-analyzer.h"
 
+#include <netinet/in.h>
+#include <netinet/ip6.h>
+#include <arpa/inet.h>
+#include <netinet/if_ether.h> /* includes net/ethernet.h */
+#include <netinet/ip.h> /* superset of previous */
+#include <linux/udp.h>
+#include <linux/tcp.h>
+
 
 //------------------------------------------------------------------------------
 // Globals
@@ -45,6 +47,7 @@
 
 u_char g_buffer[MAX_SNAPLEN];
 boolean g_verbose = FALSE;
+boolean g_timestamp_analysis = FALSE;
 
 
 //------------------------------------------------------------------------------
@@ -67,17 +70,21 @@ void printf_verbose(const char *fmtstr, ...)
 
 static void print_help()
 {
-	printf("%s [-h] [-v] [-a] [-w outfile.pcap] [-Y tcpdump_filter] [-G gtpu_tcpdump_filter] [-s string] somefile.pcap ...\n", PACKAGE_NAME);
+	printf("%s [-h] [-v] [-a] [-w outfile.pcap] [-Y tcpdump_filter] [-G gtpu_tcpdump_filter] [-S string] [-T] somefile.pcap ...\n", PACKAGE_NAME);
 	printf("by Francesco Montorsi, (c) Nov 2014-2017\n");
 	printf("version %s\n\n", PACKAGE_VERSION);
-	printf("Help:\n");
+	printf("Miscellaneous options:\n");
 	printf(" -h                       this help\n");
 	printf(" -v                       be verbose\n");
+	printf(" -t                       provide timestamp analysis on loaded packets\n");
 	printf(" -a                       open output file in APPEND mode instead of TRUNCATE\n");
 	printf(" -w <outfile.pcap>        where to save the PCAP containing the results of filtering\n");
+	printf("Filtering options:\n");
 	printf(" -Y <tcpdump_filter>      the PCAP filter to apply when READING the pcap\n");
 	printf(" -G <gtpu_tcpdump_filter> the PCAP filter to apply on inner GTPu frames (if any) to select packets to save in outfile.pcap\n");
-	printf(" -s <search-string>       an string filter  to select packets to save in outfile.pcap\n");
+	printf(" -S <search-string>       an string filter  to select packets to save in outfile.pcap\n");
+	printf(" -T                       select packets part of valid TCP connections, i.e. connections having at least 1 SYN and 1 SYN/ACK\n");
+	printf("Inputs:\n");
 	printf(" somefile.pcap            the large PCAP to analyze (you can provide more than 1 file)\n");
 	printf("Note that the -Y and -G options accept filters expressed in tcpdump/pcap_filters syntax.\n");
 	printf("See http://www.manpagez.com/man/7/pcap-filter/ for more info.\n");
@@ -85,10 +92,86 @@ static void print_help()
 	exit(0);
 }
 
+static boolean firstpass_process_pcap_handle(pcap_t* pcap_handle_in, filter_criteria_t* filter, unsigned long* nvalidflowsOUT)
+{
+	unsigned long nloaded = 0;
+    struct timeval start, stop;
+    const u_char *pcap_packet;
+    struct pcap_pkthdr *pcap_header;
+
+    gettimeofday(&start, NULL);
+    while (pcap_next_ex(pcap_handle_in, &pcap_header, &pcap_packet) > 0)
+    {
+        if ((nloaded % MILLION) == 0 && nloaded > 0)
+        	printf_verbose("%luM packets loaded from PCAP...\n", nloaded/MILLION);
+
+        boolean is_gtpu = FALSE, is_tcp_syn=FALSE, is_tcp_syn_ack=FALSE;
+
+        // get
+        int offsetInnerTransport = 0, innerIpProt = 0;
+        ParserRetCode_t ret = get_gtpu_inner_transport_offset(pcap_header, pcap_packet, &offsetInnerTransport, &innerIpProt);
+        if (ret == GPRC_VALID_PKT)
+        {
+        	is_gtpu = TRUE;
+
+        	// a GTPu packet
+        	if (innerIpProt == IPPROTO_TCP)
+        	{
+        		const struct tcphdr* tcp = (const struct tcphdr*)(pcap_packet + offsetInnerTransport);
+        		if (tcp->syn == 1 && tcp->ack == 0)
+        			is_tcp_syn=TRUE;
+        		if (tcp->syn == 1 && tcp->ack == 1)
+					is_tcp_syn_ack=TRUE;
+        	}
+        }
+        else		// not a GTPu packet
+        {
+        	// TODO: try to get pointer to TCP
+        }
+
+
+        if (is_tcp_syn || is_tcp_syn_ack)
+        {
+        	flow_hash_t tag = compute_flow_hash(pcap_header, pcap_packet, is_gtpu);
+
+        	if (is_tcp_syn)
+        	{
+        		assert(!is_tcp_syn_ack);
+        		filter->valid_tcp_firstpass_flows.insert( std::pair<flow_hash_t /* key */, FlowStatus_t /* value */>(tag, FLOW_FOUND_SYN) );		// new connection, SYN packet found
+        	}
+        	else if (is_tcp_syn_ack)
+        	{
+        		assert(!is_tcp_syn);
+
+        		flow_map_t::iterator entry = filter->valid_tcp_firstpass_flows.find(tag);
+        		if (entry != filter->valid_tcp_firstpass_flows.end() &&
+        				entry->second == FLOW_FOUND_SYN)
+        		{
+        			entry->second = FLOW_FOUND_SYN_AND_SYNACK;		// existing connection, SYN-ACK packet
+
+        			if (nvalidflowsOUT)
+        				(*nvalidflowsOUT)++;
+        		}
+        	}
+        }
+
+        nloaded++;
+    }
+    gettimeofday(&stop, NULL);
+
+    printf_verbose("Processing took %i seconds.\n", (int) (stop.tv_sec - start.tv_sec));
+
+    if (nvalidflowsOUT)
+    	printf_verbose("Processing detected %lu valid TCP flows.\n", *nvalidflowsOUT);
+
+    return TRUE;
+}
+
+
 static boolean process_pcap_handle(pcap_t* pcap_handle_in,
-							const filter_criteria_t* filter,
-							pcap_dumper_t* pcap_dumper,
-							unsigned long* nloadedOUT, unsigned long* nmatchingOUT)
+									const filter_criteria_t* filter,
+									pcap_dumper_t* pcap_dumper,
+									unsigned long* nloadedOUT, unsigned long* nmatchingOUT)
 {
     unsigned long nloaded = 0, nmatching = 0, ngtpu = 0, nbytes_avail = 0, nbytes_orig = 0;
     struct timeval start, stop;
@@ -138,53 +221,54 @@ static boolean process_pcap_handle(pcap_t* pcap_handle_in,
     gettimeofday(&stop, NULL);
 
 
-    printf_verbose("Processing took %i seconds.\n",
-            (int) (stop.tv_sec - start.tv_sec));
-    printf_verbose("%luM packets (%lu packets) were loaded from PCAP%s.\n",
-            nloaded/MILLION, nloaded, pcapfilter_desc);
+    printf_verbose("Processing took %i seconds.\n", (int) (stop.tv_sec - start.tv_sec));
+    printf_verbose("%luM packets (%lu packets) were loaded from PCAP%s.\n", nloaded/MILLION, nloaded, pcapfilter_desc);
 
     if (filter->gtpu_filter_set)
     	// in this case, the GTPu parser was run and we have a stat about how many packets are GTPu
 		printf_verbose("%luM packets (%lu packets) loaded from PCAP%s are GTPu packets (%.1f%%).\n",
 						ngtpu/MILLION, ngtpu, pcapfilter_desc, (double)(100.0*(double)(ngtpu)/(double)(nloaded)));
 
-    if (filter->string_filter || filter->gtpu_filter_set)
-        printf("%lu packets matched the filtering criteria (search string / GTPu filter) and were saved into output PCAP.\n",
+    if (filter->string_filter || filter->gtpu_filter_set || filter->valid_tcp_filter)
+        printf("%lu packets matched the filtering criteria (search string / GTPu filter / valid TCP streams filter) and were saved into output PCAP.\n",
                nmatching);
     else
     {
     	assert(nmatching == 0);
-    	printf("No criteria for packet selection specified (search string / GTPu filter) so nothing was written into output PCAP.\n");
+    	printf("No criteria for packet selection specified (search string / GTPu filter / valid TCP streams filter) so nothing was written into output PCAP.\n");
     }
 
-    double secStart = (double)first_pcap_header.ts.tv_sec +
-                        (double)first_pcap_header.ts.tv_usec / (double)MILLION;
-    double secStop = (double)last_pcap_header.ts.tv_sec +
-                        (double)last_pcap_header.ts.tv_usec / (double)MILLION;
-    double sec = secStop - secStart;
-    if (secStart < SMALL_NUM && secStop == SMALL_NUM)
+    if (g_timestamp_analysis)
     {
-        printf("Apparently the packets of the PCAP have no valid timestamp... cannot compute PCAP duration.\n");
-    }
-    else
-    {
-    	printf_verbose("Last packet has a timestamp offset = %.2fsec = %.2fmin = %.2fhours\n",
-                sec, sec/60.0, sec/3600.0);
-    }
+		double secStart = (double)first_pcap_header.ts.tv_sec +
+							(double)first_pcap_header.ts.tv_usec / (double)MILLION;
+		double secStop = (double)last_pcap_header.ts.tv_sec +
+							(double)last_pcap_header.ts.tv_usec / (double)MILLION;
+		double sec = secStop - secStart;
+		if (secStart < SMALL_NUM && secStop == SMALL_NUM)
+		{
+			printf("Apparently the packets of the PCAP have no valid timestamp... cannot compute PCAP duration.\n");
+		}
+		else
+		{
+			printf_verbose("Last packet has a timestamp offset = %.2fsec = %.2fmin = %.2fhours\n",
+					sec, sec/60.0, sec/3600.0);
+		}
 
-    printf_verbose("Bytes loaded from PCAP = %lukiB = %luMiB; total bytes on wire = %lukiB = %luMiB\n",
-           nbytes_avail/KB, nbytes_avail/MB, nbytes_orig/KB, nbytes_orig/MB);
-    if (nbytes_avail == nbytes_orig)
-    	printf_verbose("  => the whole traffic has been captured in this PCAP!\n");
+		printf_verbose("Bytes loaded from PCAP = %lukiB = %luMiB; total bytes on wire = %lukiB = %luMiB\n",
+			   nbytes_avail/KB, nbytes_avail/MB, nbytes_orig/KB, nbytes_orig/MB);
+		if (nbytes_avail == nbytes_orig)
+			printf_verbose("  => the whole traffic has been captured in this PCAP!\n");
 
-    if (sec)
-    {
-        printf("Tcpreplay should replay this PCAP at an average of %.2fMbps / %.2fpps to respect PCAP timings!\n",
-              (float)(8*nbytes_avail/MB)/sec, (float)nloaded/sec);
-    }
-    else
-    {
-        printf("Cannot compute optimal tcpreplay speed for replaying: duration is 0sec.\n");
+		if (sec)
+		{
+			printf("Tcpreplay should replay this PCAP at an average of %.2fMbps / %.2fpps to respect PCAP timings!\n",
+				  (float)(8*nbytes_avail/MB)/sec, (float)nloaded/sec);
+		}
+		else
+		{
+			printf("Cannot compute optimal tcpreplay speed for replaying: duration is 0sec.\n");
+		}
     }
 
     // provide output info
@@ -312,13 +396,11 @@ int pcap_compile_nopcap_with_err(int snaplen_arg, int linktype_arg,
 }*/
 
 static boolean process_file(const char* infile, const char *outfile, boolean outfile_append,
-							const filter_criteria_t *filter,
+							filter_criteria_t *filter,
 							unsigned long* nloadedOUT, unsigned long* nmatchingOUT)
 {
-    pcap_t *pcap_handle_in = NULL;
     char pcap_errbuf[PCAP_ERRBUF_SIZE];
-    struct bpf_program pcap_filter;
-    struct bpf_program gtpu_pcap_filter;
+    pcap_t *pcap_handle_in = NULL;
     pcap_dumper_t *pcap_dumper = NULL;
 
     struct stat st;
@@ -338,11 +420,10 @@ static boolean process_file(const char* infile, const char *outfile, boolean out
     	printf_verbose("The PCAP file has size %.2fGiB = %luMiB.\n", (double)st.st_size/(double)GB, st.st_size/MB);
     }
 
-
-    // PCAP filter
+    // PCAP capture filter
     if (filter->capture_filter_set)
     {
-        if (pcap_setfilter(pcap_handle_in, &filter->capture_filter) != 0) {
+        if (pcap_setfilter(pcap_handle_in, (struct bpf_program*) &filter->capture_filter) != 0) {
             fprintf(stderr, "Couldn't install filter: %s\n", pcap_geterr(pcap_handle_in));
             return FALSE;
         }
@@ -378,27 +459,64 @@ static boolean process_file(const char* infile, const char *outfile, boolean out
         }
     }
 
-
-
-
-
     // do the real job
-    if (!process_pcap_handle(pcap_handle_in, filter, pcap_dumper, nloadedOUT, nmatchingOUT))
-        return FALSE;
 
+    if (filter->valid_tcp_filter)
+    {
+    	// special mode: this requires 2 pass over the PCAP file: first one to get hash values for valid FLOWS;
+    	// second one to save to disk all flows with valid hashes
+
+
+    	// first pass:
+
+    	unsigned long nvalidflows=0;
+    	if (!firstpass_process_pcap_handle(pcap_handle_in, filter, &nvalidflows))
+    		return FALSE;
+
+
+    	if (nvalidflows)
+    	{
+
+			// second pass:
+
+			// reopen infile
+			pcap_close(pcap_handle_in);
+			pcap_handle_in = pcap_open_offline(infile, pcap_errbuf);
+			if (pcap_handle_in == NULL) {
+				fprintf(stderr, "Couldn't open file: %s\n", pcap_errbuf);
+				return FALSE;
+			}
+			printf_verbose("Analyzing PCAP file '%s'...\n", infile);
+
+			if (st.st_size)
+			{
+				printf_verbose("The PCAP file has size %.2fGiB = %luMiB.\n", (double)st.st_size/(double)GB, st.st_size/MB);
+			}
+
+			if (!process_pcap_handle(pcap_handle_in, filter, pcap_dumper, nloadedOUT, nmatchingOUT))
+				return FALSE;
+    	}
+    	else
+    	{
+    		return FALSE;
+    	}
+    }
+    else
+    {
+		if (!process_pcap_handle(pcap_handle_in, filter, pcap_dumper, nloadedOUT, nmatchingOUT))
+			return FALSE;
+    }
 
     // cleanup
     if (outfile)
         pcap_dump_close(pcap_dumper);
-    if (filter)
-        pcap_freecode(&pcap_filter);
     pcap_close(pcap_handle_in);
 
     return TRUE;
 }
 
 static boolean prepare_filter(filter_criteria_t* out,
-								const char* pcap_filter_str, const char* gtpu_filter_str, const char* string_filter, boolean gtpu_valid_tcp_filter)
+								const char* pcap_filter_str, const char* gtpu_filter_str, const char* string_filter, boolean valid_tcp_filter)
 {
     // PCAP filter
     if (pcap_filter_str)
@@ -432,7 +550,7 @@ static boolean prepare_filter(filter_criteria_t* out,
     // other filters:
 
     out->string_filter = string_filter;
-    out->gtpu_valid_tcp_filter = gtpu_valid_tcp_filter;
+    out->valid_tcp_filter = valid_tcp_filter;
 
 
     return TRUE;
@@ -445,13 +563,13 @@ static boolean prepare_filter(filter_criteria_t* out,
 int main(int argc, char **argv)
 {
     int opt;
-    boolean append = FALSE, gtpu_valid_tcp_filter = FALSE;
+    boolean append = FALSE, valid_tcp_filter = FALSE;
     char *outfile = NULL;
     char *pcap_filter = NULL;
     char *pcap_gtpu_filter = NULL;
     char *search = NULL;
 
-    while ((opt = getopt(argc, argv, "tvaw:Y:G:s:h")) != -1) {
+    while ((opt = getopt(argc, argv, "thvaw:Y:G:S:T")) != -1) {
         switch (opt) {
         case 'v':
 			g_verbose = TRUE;
@@ -459,23 +577,30 @@ int main(int argc, char **argv)
         case 'a':
             append = TRUE;
             break;
-        case 't':
-        	gtpu_valid_tcp_filter = TRUE;
-            break;
         case 'w':
             outfile = optarg;
             break;
+        case 'h':
+            print_help();
+            break;
+        case 't':
+        	g_timestamp_analysis = TRUE;
+        	break;
+
+
+            // filters:
+
         case 'Y':
             pcap_filter = optarg;
             break;
         case 'G':
             pcap_gtpu_filter = optarg;
             break;
-        case 's':
+        case 'S':
             search = optarg;
             break;
-        case 'h':
-            print_help();
+        case 'T':
+        	valid_tcp_filter = TRUE;
             break;
 
         case '?':
@@ -496,8 +621,7 @@ int main(int argc, char **argv)
 
 
     filter_criteria_t filter;
-    memset(&filter, 0, sizeof(filter));
-    if (!prepare_filter(&filter, pcap_filter, pcap_gtpu_filter, search, gtpu_valid_tcp_filter))
+    if (!prepare_filter(&filter, pcap_filter, pcap_gtpu_filter, search, valid_tcp_filter))
     {
     	// error was already logged
         return 1;
@@ -548,6 +672,11 @@ int main(int argc, char **argv)
         printf_verbose("Total number of loaded packets: %lu\n", nloaded);
         printf_verbose("Total number of matching packets: %lu\n", nmatching);
     }
+
+    if (filter.capture_filter_set)
+        pcap_freecode(&filter.capture_filter);
+    if (filter.gtpu_filter_set)
+        pcap_freecode(&filter.gtpu_filter);
 
     return 0;
 }
