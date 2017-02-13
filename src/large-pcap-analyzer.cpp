@@ -31,6 +31,8 @@
 //------------------------------------------------------------------------------
 
 #include "large-pcap-analyzer.h"
+#include "parse.h"
+#include "filter.h"
 
 #include <netinet/in.h>
 #include <netinet/ip6.h>
@@ -40,6 +42,8 @@
 #include <linux/udp.h>
 #include <linux/tcp.h>
 
+#include <signal.h>
+
 
 //------------------------------------------------------------------------------
 // Globals
@@ -48,6 +52,8 @@
 u_char g_buffer[MAX_SNAPLEN];
 bool g_verbose = FALSE;
 bool g_timestamp_analysis = FALSE;
+bool g_parsing_stats = FALSE;
+bool g_termination_requested = FALSE;
 
 
 //------------------------------------------------------------------------------
@@ -77,6 +83,7 @@ static void print_help()
 	printf(" -h                       this help\n");
 	printf(" -v                       be verbose\n");
 	printf(" -t                       provide timestamp analysis on loaded packets\n");
+	printf(" -p                       provide basic parsing statistics on loaded packets\n");
 	printf(" -a                       open output file in APPEND mode instead of TRUNCATE\n");
 	printf(" -w <outfile.pcap>        where to save the PCAP containing the results of filtering\n");
 	printf("Filtering options:\n");
@@ -103,7 +110,7 @@ static bool firstpass_process_pcap_handle_for_tcp_valid_streams(pcap_t* pcap_han
 	filter->valid_tcp_firstpass_flows.clear();
 
 	gettimeofday(&start, NULL);
-	while (pcap_next_ex(pcap_handle_in, &pcap_header, &pcap_packet) > 0)
+	while (!g_termination_requested && pcap_next_ex(pcap_handle_in, &pcap_header, &pcap_packet) > 0)
 	{
 		if ((nloaded_pkts % MILLION) == 0 && nloaded_pkts > 0)
 			printf_verbose("%luM packets loaded from PCAP...\n", nloaded_pkts/MILLION);
@@ -193,64 +200,75 @@ static bool process_pcap_handle(pcap_t* pcap_handle_in,
 									pcap_dumper_t* pcap_dumper,
 									unsigned long* nloadedOUT, unsigned long* nmatchingOUT)
 {
-    unsigned long nloaded = 0, nmatching = 0, ngtpu = 0, nbytes_avail = 0, nbytes_orig = 0;
-    struct timeval start, stop;
-    bool first = TRUE;
+	unsigned long nloaded = 0, nmatching = 0, ngtpu = 0, nbytes_avail = 0, nbytes_orig = 0;
+	struct timeval start, stop;
+	bool first = TRUE;
+	ParsingStats parsing_stats;
 
-    const u_char *pcap_packet;
-    struct pcap_pkthdr *pcap_header;
-    struct pcap_pkthdr first_pcap_header, last_pcap_header;
+	const u_char *pcap_packet;
+	struct pcap_pkthdr *pcap_header;
+	struct pcap_pkthdr first_pcap_header, last_pcap_header;
 
-    const char* pcapfilter_desc = filter->capture_filter_set ? " (matching PCAP filter)" : "";
+	const char* pcapfilter_desc = filter->capture_filter_set ? " (matching PCAP filter)" : "";
 
-    gettimeofday(&start, NULL);
-    while (pcap_next_ex(pcap_handle_in, &pcap_header, &pcap_packet) > 0)
-    {
-        if ((nloaded % MILLION) == 0 && nloaded > 0)
-        	printf_verbose("%luM packets loaded from PCAP%s...\n", nloaded/MILLION, pcapfilter_desc);
-
-
-        // filter and save to output eventually
-
-        bool is_gtpu = FALSE;
-        bool tosave = must_be_saved(pcap_header, pcap_packet, filter, &is_gtpu);
-        if (tosave) {
-            nmatching++;
-
-            if (pcap_dumper)
-                pcap_dump((u_char *) pcap_dumper, pcap_header, pcap_packet);
-        }
-        if (is_gtpu)
-        	ngtpu++;
+	gettimeofday(&start, NULL);
+	while (!g_termination_requested && pcap_next_ex(pcap_handle_in, &pcap_header, &pcap_packet) > 0)
+	{
+		if ((nloaded % MILLION) == 0 && nloaded > 0)
+			printf_verbose("%luM packets loaded from PCAP%s...\n", nloaded/MILLION, pcapfilter_desc);
 
 
-        // save timestamps for later analysis:
+		// filter and save to output eventually
 
-        if (first)
-        {
-            memcpy(&first_pcap_header, pcap_header, sizeof(struct pcap_pkthdr));
-            first = 0;
-        }
-        else
-            memcpy(&last_pcap_header, pcap_header, sizeof(struct pcap_pkthdr));
+		bool is_gtpu = FALSE;
+		bool tosave = must_be_saved(pcap_header, pcap_packet, filter, &is_gtpu);
+		if (tosave) {
+			nmatching++;
 
-        nbytes_avail += pcap_header->caplen;
-        nbytes_orig += pcap_header->len;
-        nloaded++;
-    }
-    gettimeofday(&stop, NULL);
+			if (pcap_dumper)
+				pcap_dump((u_char *) pcap_dumper, pcap_header, pcap_packet);
+		}
+		if (is_gtpu)
+			ngtpu++;
 
 
-    printf_verbose("Processing took %i seconds.\n", (int) (stop.tv_sec - start.tv_sec));
-    printf("%luM packets (%lu packets) were loaded from PCAP%s.\n", nloaded/MILLION, nloaded, pcapfilter_desc);
+		if (g_timestamp_analysis)
+		{
+			// save timestamps for later analysis:
+			if (first)
+			{
+				memcpy(&first_pcap_header, pcap_header, sizeof(struct pcap_pkthdr));
+				first = 0;
+			}
+			else
+				memcpy(&last_pcap_header, pcap_header, sizeof(struct pcap_pkthdr));
+		}
 
-    if (filter->gtpu_filter_set)
-    	// in this case, the GTPu parser was run and we have a stat about how many packets are GTPu
+		if (g_parsing_stats)
+		{
+			update_parsing_stats(pcap_header, pcap_packet, parsing_stats);
+		}
+
+
+		// advance main stats counters:
+
+		nbytes_avail += pcap_header->caplen;
+		nbytes_orig += pcap_header->len;
+		nloaded++;
+	}
+	gettimeofday(&stop, NULL);
+
+
+	printf_verbose("Processing took %i seconds.\n", (int) (stop.tv_sec - start.tv_sec));
+	printf("%luM packets (%lu packets) were loaded from PCAP%s.\n", nloaded/MILLION, nloaded, pcapfilter_desc);
+
+	if (filter->gtpu_filter_set)
+		// in this case, the GTPu parser was run and we have a stat about how many packets are GTPu
 		printf_verbose("%luM packets (%lu packets) loaded from PCAP%s are GTPu packets (%.1f%%).\n",
 						ngtpu/MILLION, ngtpu, pcapfilter_desc, (double)(100.0*(double)(ngtpu)/(double)(nloaded)));
 
-    if (pcap_dumper)
-    {
+	if (pcap_dumper)
+	{
 		if (filter->capture_filter_set || filter->gtpu_filter_set || filter->string_filter || filter->valid_tcp_filter)
 		{
 			printf("%luM packets (%lu packets) matched the filtering criteria (search string / PCAP filters / valid TCP streams filter) and were saved into output PCAP.\n",
@@ -261,10 +279,10 @@ static bool process_pcap_handle(pcap_t* pcap_handle_in,
 			assert(nmatching == 0);
 			printf("No criteria for packet selection specified (search string / GTPu filter / valid TCP streams filter) so nothing was written into output PCAP.\n");
 		}
-    }
+	}
 
-    if (g_timestamp_analysis)
-    {
+	if (g_timestamp_analysis)
+	{
 		double secStart = (double)first_pcap_header.ts.tv_sec +
 							(double)first_pcap_header.ts.tv_usec / (double)MILLION;
 		double secStop = (double)last_pcap_header.ts.tv_sec +
@@ -294,13 +312,23 @@ static bool process_pcap_handle(pcap_t* pcap_handle_in,
 		{
 			printf("Cannot compute optimal tcpreplay speed for replaying: duration is 0sec.\n");
 		}
-    }
+	}
 
-    // provide output info
-    if (nloadedOUT) *nloadedOUT += nloaded;
-    if (nmatchingOUT) *nmatchingOUT += nmatching;
+	if (g_parsing_stats)
+	{
+		printf("Parsing stats: %.2f%% GTPu with valid inner transport, %.2f%% GTPu with valid inner IP, %.2f%% with valid transport, %.2f%% with valid IP, %.2f%% invalid.\n",
+				parsing_stats.perc_pkts_valid_gtpu_transport(),
+				parsing_stats.perc_pkts_valid_gtpu_ip(),
+				parsing_stats.perc_pkts_valid_tranport(),
+				parsing_stats.perc_pkts_valid_ip(),
+				parsing_stats.perc_pkts_invalid());
+	}
 
-    return TRUE;
+	// provide output info
+	if (nloadedOUT) *nloadedOUT += nloaded;
+	if (nmatchingOUT) *nmatchingOUT += nmatching;
+
+	return TRUE;
 }
 
 
@@ -566,123 +594,152 @@ static bool prepare_filter(FilterCriteria* out,
 }
 
 //------------------------------------------------------------------------------
+// signal handler
+//------------------------------------------------------------------------------
+
+static void sigint_handler(int /*sigNum*/, siginfo_t* /*sigInfo*/, void* /*context*/)
+{
+	printf("Received interruption... aborting. Output results may be incomplete.\n");
+	g_termination_requested = true;
+}
+
+//------------------------------------------------------------------------------
 // main: argument parsing
 //------------------------------------------------------------------------------
 
 int main(int argc, char **argv)
 {
-    int opt;
-    bool append = FALSE, valid_tcp_filter = FALSE;
-    char *outfile = NULL;
-    char *pcap_filter = NULL;
-    char *pcap_gtpu_filter = NULL;
-    char *search = NULL;
+	int opt;
+	bool append = FALSE, valid_tcp_filter = FALSE;
+	char *outfile = NULL;
+	char *pcap_filter = NULL;
+	char *pcap_gtpu_filter = NULL;
+	char *search = NULL;
 
-    while ((opt = getopt(argc, argv, "thvaw:Y:G:S:T")) != -1) {
-        switch (opt) {
-        case 'v':
+	while ((opt = getopt(argc, argv, "pthvaw:Y:G:S:T")) != -1) {
+		switch (opt) {
+		case 'v':
 			g_verbose = TRUE;
 			break;
-        case 'a':
-            append = TRUE;
-            break;
-        case 'w':
-            outfile = optarg;
-            break;
-        case 'h':
-            print_help();
-            break;
-        case 't':
-        	g_timestamp_analysis = TRUE;
-        	break;
+		case 'p':
+			g_parsing_stats = TRUE;
+			break;
+		case 'a':
+			append = TRUE;
+			break;
+		case 'w':
+			outfile = optarg;
+			break;
+		case 'h':
+			print_help();
+			break;
+		case 't':
+			g_timestamp_analysis = TRUE;
+			break;
 
 
-            // filters:
+			// filters:
 
-        case 'Y':
-            pcap_filter = optarg;
-            break;
-        case 'G':
-            pcap_gtpu_filter = optarg;
-            break;
-        case 'S':
-            search = optarg;
-            break;
-        case 'T':
-        	valid_tcp_filter = TRUE;
-            break;
+		case 'Y':
+			pcap_filter = optarg;
+			break;
+		case 'G':
+			pcap_gtpu_filter = optarg;
+			break;
+		case 'S':
+			search = optarg;
+			break;
+		case 'T':
+			valid_tcp_filter = TRUE;
+			break;
 
-        case '?':
-            {
-                if (optopt == 'w' || optopt == 'Y' || optopt == 'G' || optopt == 's')
-                    fprintf (stderr, "Option -%c requires an argument.\n", optopt);
-                else if (isprint (optopt))
-                    fprintf (stderr, "Unknown option `-%c'.\n", optopt);
-                else
-                    fprintf (stderr, "Unknown option character `\\x%x'.\n", optopt);
-            }
-            return 1;
+		case '?':
+			{
+				if (optopt == 'w' || optopt == 'Y' || optopt == 'G' || optopt == 's')
+					fprintf (stderr, "Option -%c requires an argument.\n", optopt);
+				else if (isprint (optopt))
+					fprintf (stderr, "Unknown option `-%c'.\n", optopt);
+				else
+					fprintf (stderr, "Unknown option character `\\x%x'.\n", optopt);
+			}
+			return 1;
 
-        default:
-            abort();
-        }
-    }
-
-
-    FilterCriteria filter;
-    if (!prepare_filter(&filter, pcap_filter, pcap_gtpu_filter, search, valid_tcp_filter))
-    {
-    	// error was already logged
-        return 1;
-    }
+		default:
+			abort();
+		}
+	}
 
 
 
-    // the last non-option arguments are the input filenames:
+	// install signal handler:
 
-    if (optind >= argc || !argv[optind])
-    {
-        fprintf(stderr, "Please provide at least one input PCAP file to analyze...\n");
-        print_help();
-        return 1;
-    }
-    else if (optind == argc-1)
-    {
-        if (outfile && strcmp(argv[optind], outfile) == 0)
-        {
-            fprintf(stderr, "The PCAP to analyze '%s' is also the dump PCAP?\n", outfile);
-            return 1;
-        }
+	struct sigaction sa;
+	memset(&sa, 0, sizeof(sa));
+	sa.sa_sigaction = sigint_handler;
+	sigemptyset(&sa.sa_mask);
+	sa.sa_flags = SA_SIGINFO;			// use the advanced callback, specially useful because provides the PID of the signal sender
+	if (sigaction(SIGINT, &sa, NULL) < 0)
+	{
+		fprintf (stderr, "Failed to intercept signal %d.", SIGTERM);
+		return 1;	// failure
+	}
 
-        // just 1 input file
-        if (!process_file(argv[optind], outfile, append, &filter, NULL, NULL))
-            return 2;
-    }
-    else
-    {
-        // more than 1 input file
 
-        unsigned long nloaded = 0, nmatching = 0;
-        int currfile = optind;
-        for (; currfile < argc; currfile++)
-        {
-            if (outfile && strcmp(argv[currfile], outfile) == 0)
-            {
-                printf("Skipping the PCAP '%s': it is the dump PCAP specified with -w\n", outfile);
-                printf("\n");
-                continue;
-            }
 
-            if (!process_file(argv[currfile], outfile, append, &filter, &nloaded, &nmatching))
-                return 2;
-            printf("\n");
-        }
 
-        printf_verbose("Total number of loaded packets: %lu\n", nloaded);
-        printf_verbose("Total number of matching packets: %lu\n", nmatching);
-    }
+	FilterCriteria filter;
+	if (!prepare_filter(&filter, pcap_filter, pcap_gtpu_filter, search, valid_tcp_filter))
+	{
+		// error was already logged
+		return 1;
+	}
 
-    return 0;
+
+	// the last non-option arguments are the input filenames:
+
+	if (optind >= argc || !argv[optind])
+	{
+		fprintf(stderr, "Please provide at least one input PCAP file to analyze...\n");
+		print_help();
+		return 1;
+	}
+	else if (optind == argc-1)
+	{
+		if (outfile && strcmp(argv[optind], outfile) == 0)
+		{
+			fprintf(stderr, "The PCAP to analyze '%s' is also the dump PCAP?\n", outfile);
+			return 1;
+		}
+
+		// just 1 input file
+		if (!process_file(argv[optind], outfile, append, &filter, NULL, NULL))
+			return 2;
+	}
+	else
+	{
+		// more than 1 input file
+
+		unsigned long nloaded = 0, nmatching = 0;
+		int currfile = optind;
+		for (; currfile < argc; currfile++)
+		{
+			if (outfile && strcmp(argv[currfile], outfile) == 0)
+			{
+				printf("Skipping the PCAP '%s': it is the dump PCAP specified with -w\n", outfile);
+				printf("\n");
+				continue;
+			}
+
+			if (!process_file(argv[currfile], outfile, append, &filter, &nloaded, &nmatching))
+				return 2;
+			printf("\n");
+		}
+
+		printf_verbose("Total number of loaded packets: %lu\n", nloaded);
+		printf_verbose("Total number of matching packets: %lu\n", nmatching);
+	}
+
+	return 0;
 }
 
 

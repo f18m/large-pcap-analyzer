@@ -115,63 +115,11 @@
     #define FALSE       0
 #endif
 
-typedef enum
-{
-	GPRC_VALID_PKT = 0,
-
-	GPRC_NOT_GTPU_PKT = -1,
-	GPRC_TOO_SHORT_PKT = -2,
-	GPRC_INVALID_PKT = -3,
-} ParserRetCode_t;
-
-typedef enum
-{
-	FLOW_FOUND_SYN,
-	FLOW_FOUND_SYN_AND_SYNACK,
-} FlowStatus_t;
-
-typedef uint64_t   flow_hash_t;								// init to INVALID_FLOW_HASH
-typedef std::map<flow_hash_t /* key */, FlowStatus_t /* value */>     flow_map_t;
-
 typedef struct
 {
 	uint16_t vlanId;			// in NETWORK order
 	uint16_t protoType;
 } __attribute__((packed)) ether80211q_t;
-
-class FilterCriteria
-{
-public:
-	FilterCriteria()
-	{
-		memset(&capture_filter, 0, sizeof(capture_filter));
-		memset(&gtpu_filter, 0, sizeof(gtpu_filter));
-		capture_filter_set = FALSE;
-		gtpu_filter_set = FALSE;
-		valid_tcp_filter = FALSE;
-		string_filter = NULL;
-	}
-
-	~FilterCriteria()
-	{
-		if (capture_filter_set)
-			pcap_freecode(&capture_filter);
-		if (gtpu_filter_set)
-			pcap_freecode(&gtpu_filter);
-	}
-
-public:
-	struct bpf_program 			capture_filter;
-	bool 					capture_filter_set;
-
-	struct bpf_program 			gtpu_filter;
-	bool 					gtpu_filter_set;
-
-	const char* 				string_filter;
-
-	bool 					valid_tcp_filter;
-	flow_map_t 					valid_tcp_firstpass_flows;			// contains the result of the 1st pass
-};
 
 // stuff coming from http://lxr.free-electrons.com/source/include/net/gtp.h
 
@@ -197,16 +145,5 @@ extern bool g_verbose;
 //------------------------------------------------------------------------------
 
 extern void printf_verbose(const char *fmtstr, ...);
-
-// filter routines:
-extern bool must_be_saved(struct pcap_pkthdr* pcap_header, const u_char* pcap_packet,
-							const FilterCriteria* filter, bool* is_gtpu);
-
-// parse routines:
-extern ParserRetCode_t get_transport_offset(struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet, int* offsetTransportOut, int* ipprotOut);
-extern ParserRetCode_t get_gtpu_inner_ip_offset(struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet, int* offsetIpInner, int* ipver);
-extern ParserRetCode_t get_gtpu_inner_transport_offset(struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet, int* offsetTransportInner, int* ipprotInner);
-
-extern flow_hash_t compute_flow_hash(struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet);
 
 #endif

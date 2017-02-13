@@ -29,7 +29,7 @@
 // Includes
 //------------------------------------------------------------------------------
 
-#include "large-pcap-analyzer.h"
+#include "filter.h"
 
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -124,11 +124,10 @@ bool must_be_saved(struct pcap_pkthdr* pcap_header, const u_char* pcap_packet,
 		// is this a GTPu packet?
 		int offset = 0, ipver = 0;
 		ParserRetCode_t errcode = get_gtpu_inner_ip_offset(pcap_header, pcap_packet, &offset, &ipver);
-		if (is_gtpu && errcode == GPRC_VALID_PKT)
+		if (errcode == GPRC_VALID_PKT)
 		{
-			*is_gtpu = TRUE;
+			if (is_gtpu) *is_gtpu = TRUE;
 
-			// is there a GTPu PCAP filter?
 			int len = pcap_header->len - offset;
 			if (offset > 0 && len > 0)
 			{

@@ -29,7 +29,7 @@
 // Includes
 //------------------------------------------------------------------------------
 
-#include "large-pcap-analyzer.h"
+#include "parse.h"
 
 #include <netinet/in.h>
 #include <netinet/ip6.h>
@@ -101,7 +101,7 @@ static uint32_t hw_fasthash(const void *buf, size_t len, uint64_t offset)
 // Global Functions
 //------------------------------------------------------------------------------
 
-ParserRetCode_t get_ip_offset(struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet, int* offsetOut, int* ipver)
+ParserRetCode_t get_ip_offset(const struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet, int* offsetOut, int* ipver)
 {
 	unsigned int offset = 0;
 
@@ -147,7 +147,7 @@ ParserRetCode_t get_ip_offset(struct pcap_pkthdr* pcap_header, const u_char* con
 	return GPRC_VALID_PKT;
 }
 
-ParserRetCode_t get_transport_offset(struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet, int* offsetTransportOut, int* ipprotOut)
+ParserRetCode_t get_transport_offset(const struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet, int* offsetTransportOut, int* ipprotOut)
 {
 	int offset = 0, ipver = 0;
 	ParserRetCode_t ret = get_ip_offset(pcap_header, pcap_packet, &offset, &ipver);
@@ -194,7 +194,7 @@ ParserRetCode_t get_transport_offset(struct pcap_pkthdr* pcap_header, const u_ch
 // Global Functions - GTPu parsing
 //------------------------------------------------------------------------------
 
-ParserRetCode_t get_gtpu_inner_ip_offset(struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet, int* offsetIpInner, int* ipver)
+ParserRetCode_t get_gtpu_inner_ip_offset(const struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet, int* offsetIpInner, int* ipver)
 {
 	int offset = 0, ip_prot = 0;
 	ParserRetCode_t ret = get_transport_offset(pcap_header, pcap_packet, &offset, &ip_prot);
@@ -293,7 +293,7 @@ ParserRetCode_t get_gtpu_inner_ip_offset(struct pcap_pkthdr* pcap_header, const 
 	return GPRC_VALID_PKT;
 }
 
-ParserRetCode_t get_gtpu_inner_transport_offset(struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet, int* offsetTransportInner, int* ipprotInner)
+ParserRetCode_t get_gtpu_inner_transport_offset(const struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet, int* offsetTransportInner, int* ipprotInner)
 {
 	int offset = 0, ipver = 0;
 	ParserRetCode_t ret = get_gtpu_inner_ip_offset(pcap_header, pcap_packet, &offset, &ipver);
@@ -333,10 +333,59 @@ ParserRetCode_t get_gtpu_inner_transport_offset(struct pcap_pkthdr* pcap_header,
 
 
 //------------------------------------------------------------------------------
+// Global Functions - parsing stats
+//------------------------------------------------------------------------------
+
+void update_parsing_stats(const struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet, ParsingStats& outstats)
+{
+	ParserRetCode_t ret;
+
+	// increment the total: it will be used to compute percentages later
+	outstats.pkts_total++;
+
+	// TODO: this way to do the stats is pretty much non-efficient:
+
+	ret = get_gtpu_inner_transport_offset(pcap_header, pcap_packet, NULL, NULL);
+	if (ret == GPRC_VALID_PKT)
+	{
+		outstats.pkts_valid_gtpu_transport++;
+		return;
+	}
+	//else: try to parse inner layers
+
+	ret = get_gtpu_inner_ip_offset(pcap_header, pcap_packet, NULL, NULL);
+	if (ret == GPRC_VALID_PKT)
+	{
+		outstats.pkts_valid_gtpu_ip++;
+		return;
+	}
+	//else: try to parse inner layers
+
+	ret = get_transport_offset(pcap_header, pcap_packet, NULL, NULL);
+	if (ret == GPRC_VALID_PKT)
+	{
+		outstats.pkts_valid_tranport++;
+		return;
+	}
+	//else: try to parse inner layers
+
+	ret = get_ip_offset(pcap_header, pcap_packet, NULL, NULL);
+	if (ret == GPRC_VALID_PKT)
+	{
+		outstats.pkts_valid_ip++;
+		return;
+	}
+	//else: try to parse inner layers
+
+
+	outstats.pkts_invalid++;
+}
+
+//------------------------------------------------------------------------------
 // Global Functions - flow hashing
 //------------------------------------------------------------------------------
 
-flow_hash_t compute_flow_hash(struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet)
+flow_hash_t compute_flow_hash(const struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet)
 {
 	flow_hash_t flow_hash = INVALID_FLOW_HASH;
 	int offsetIp = 0, offsetTransport = 0, ip_prot = 0, ipver = 0;
