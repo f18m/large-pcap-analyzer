@@ -7,7 +7,7 @@
  * Last Modified: Jan 2017
  *
  * LICENSE:
-	 This program is free software; you can redistribute it and/or modify
+	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
 	the Free Software Foundation; either version 2 of the License, or
 	(at your option) any later version.
@@ -39,32 +39,54 @@
 #include <linux/tcp.h>
 
 
+
+//------------------------------------------------------------------------------
+// Globals
+//------------------------------------------------------------------------------
+
+u_char g_buffer[MAX_SNAPLEN];
+
+
 //------------------------------------------------------------------------------
 // Static Functions
 //------------------------------------------------------------------------------
 
-static bool apply_filter_on_inner_ipv4_frame(struct pcap_pkthdr* pcap_header, const u_char* pcap_packet,
-												unsigned int inner_ipv4_offset, unsigned int inner_ipv4_len,
-												const struct bpf_program* gtpu_filter)
+static bool apply_filter_on_inner_ip_frame(const Packet& pkt,
+											unsigned int inner_ip_offset, unsigned int ipver, unsigned int len_after_inner_ip_start,
+											const struct bpf_program* gtpu_filter)
 {
-	bool tosave = FALSE;
+	bool tosave = false;
 	//memset(g_buffer, 0, sizeof(g_buffer));   // not actually needed
 
 	// rebuild the ethernet frame, copying the original one possibly
-	const struct ether_header* orig_ehdr = (struct ether_header*)pcap_packet;
+	const struct ether_header* orig_ehdr = (struct ether_header*)pkt.data();
 	struct ether_header* fake_ehdr = (struct ether_header*)g_buffer;
 	memcpy(fake_ehdr, orig_ehdr, sizeof(*orig_ehdr));
-	fake_ehdr->ether_type = htons(ETH_P_IP);			// erase any layer (like VLAN) possibly present in orig packet
 
-	// copy from IPv4 onward:
-	const u_char* orig_inner = pcap_packet + inner_ipv4_offset;
-	u_char* fake_ipv4 = g_buffer + sizeof(struct ether_header);
-	memcpy(fake_ipv4, orig_inner, inner_ipv4_len);
+	switch (ipver)
+	{
+	case 4:
+		fake_ehdr->ether_type = htons(ETH_P_IP);			// erase any layer (like VLAN) possibly present in orig packet
+		break;
 
-	// create also a fake
+	case 6:
+		fake_ehdr->ether_type = htons(ETH_P_IPV6);			// erase any layer (like VLAN) possibly present in orig packet
+		break;
+
+	default:
+		assert(0);
+	}
+
+	// copy from IPv4/v6 onward:
+	const u_char* inner_ip = pkt.data() + inner_ip_offset;
+	u_char* fake_ip = g_buffer + sizeof(struct ether_header);
+	memcpy(fake_ip, inner_ip, len_after_inner_ip_start);
+	fake_ip[len_after_inner_ip_start] = 0;		// put a NULL byte after last copied byte just in case
+
+	// create also a fake PCAP header
 	struct pcap_pkthdr fakehdr;
-	memcpy(&fakehdr.ts, &pcap_header->ts, sizeof(pcap_header->ts));
-	fakehdr.caplen = fakehdr.len = sizeof(struct ether_header) + inner_ipv4_len;
+	memcpy(&fakehdr.ts, &pkt.pcap_header->ts, sizeof(pkt.pcap_header->ts));
+	fakehdr.caplen = fakehdr.len = sizeof(struct ether_header) + len_after_inner_ip_start;
 
 	// pcap_offline_filter returns
 	// zero if the packet doesn't match the filter and non-zero
@@ -72,7 +94,7 @@ static bool apply_filter_on_inner_ipv4_frame(struct pcap_pkthdr* pcap_header, co
 	int ret = pcap_offline_filter(gtpu_filter, &fakehdr, g_buffer);
 	if (ret != 0)
 	{
-		tosave = TRUE;
+		tosave = true;
 	}
 
 	return tosave;
@@ -83,22 +105,21 @@ static bool apply_filter_on_inner_ipv4_frame(struct pcap_pkthdr* pcap_header, co
 // Global Functions
 //------------------------------------------------------------------------------
 
-bool must_be_saved(struct pcap_pkthdr* pcap_header, const u_char* pcap_packet,
-					const FilterCriteria* filter, bool* is_gtpu)
+bool must_be_saved(const Packet& pkt, const FilterCriteria* filter, bool* is_gtpu)
 {
 	// string-search filter:
 
 	if (filter->string_filter)
 	{
-		unsigned int len = MIN(pcap_header->len, MAX_SNAPLEN);
+		unsigned int len = MIN(pkt.len(), MAX_SNAPLEN);
 
-		memcpy(g_buffer, pcap_packet, len);
+		memcpy(g_buffer, pkt.data(), len);
 		g_buffer[len] = '\0';
 
 		void* result = memmem(g_buffer, len, filter->string_filter, strlen(filter->string_filter));
 		if (result != NULL)
 			// string was found inside the packet!
-			return TRUE;   // useless to proceed!
+			return true;   // useless to proceed!
 	}
 
 
@@ -106,13 +127,13 @@ bool must_be_saved(struct pcap_pkthdr* pcap_header, const u_char* pcap_packet,
 
 	if (filter->capture_filter_set)
 	{
-		int ret = pcap_offline_filter(&filter->capture_filter, pcap_header, pcap_packet);
+		int ret = pcap_offline_filter(&filter->capture_filter, pkt.pcap_header, pkt.pcap_packet);
 		if (ret != 0)
 		{
 			// pcap_offline_filter returns
 			// zero if the packet doesn't match the filter and non-zero
 			// if the packet matches the filter.
-			return TRUE;   // useless to proceed!
+			return true;   // useless to proceed!
 		}
 	}
 
@@ -122,18 +143,17 @@ bool must_be_saved(struct pcap_pkthdr* pcap_header, const u_char* pcap_packet,
 	if (filter->gtpu_filter_set)
 	{
 		// is this a GTPu packet?
-		int offset = 0, ipver = 0;
-		ParserRetCode_t errcode = get_gtpu_inner_ip_offset(pcap_header, pcap_packet, &offset, &ipver);
+		int offset = 0, ipver = 0, len_after_inner_ip_start = 0;
+		ParserRetCode_t errcode = get_gtpu_inner_ip_start_offset(pkt, &offset, &ipver, &len_after_inner_ip_start);
 		if (errcode == GPRC_VALID_PKT)
 		{
-			if (is_gtpu) *is_gtpu = TRUE;
+			if (is_gtpu) *is_gtpu = true;
 
-			int len = pcap_header->len - offset;
-			if (offset > 0 && len > 0)
+			if (offset > 0 && len_after_inner_ip_start > 0)
 			{
 				// run the filter only on inner/encapsulated frame:
-				if (apply_filter_on_inner_ipv4_frame(pcap_header, pcap_packet, offset, len, &filter->gtpu_filter))
-					return TRUE;   // useless to proceed!
+				if (apply_filter_on_inner_ip_frame(pkt, offset, ipver, len_after_inner_ip_start, &filter->gtpu_filter))
+					return true;   // useless to proceed!
 			}
 		}
 	}
@@ -143,16 +163,16 @@ bool must_be_saved(struct pcap_pkthdr* pcap_header, const u_char* pcap_packet,
 
 	if (filter->valid_tcp_filter)
 	{
-		flow_hash_t hash = compute_flow_hash(pcap_header, pcap_packet);
+		flow_hash_t hash = compute_flow_hash(pkt);
 
 		if (hash != INVALID_FLOW_HASH)
 		{
 			flow_map_t::const_iterator entry = filter->valid_tcp_firstpass_flows.find(hash);
 			if (entry != filter->valid_tcp_firstpass_flows.end() &&
 					entry->second == FLOW_FOUND_SYN_AND_SYNACK)
-				return TRUE;   // useless to proceed! in the 1st run this connection was tagged as VALID
+				return true;   // useless to proceed! in the 1st run this connection was tagged as VALID
 		}
 	}
 
-	return FALSE;
+	return false;
 }

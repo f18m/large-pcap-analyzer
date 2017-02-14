@@ -91,6 +91,9 @@
     #define MIN(x,y) ((x)>(y)?(y):(x))
 #endif  /*MIN*/
 
+#define LIKELY(x)   __builtin_expect((x),1)
+#define UNLIKELY(x) __builtin_expect((x),0)
+
 
 // stuff coming from http://lxr.free-electrons.com/source/include/net/gtp.h
 
@@ -107,13 +110,8 @@
 // Types
 //------------------------------------------------------------------------------
 
-#ifndef TRUE
-    #define TRUE        1
-#endif
 
-#ifndef FALSE
-    #define FALSE       0
-#endif
+// VLAN frame definition:
 
 typedef struct
 {
@@ -121,6 +119,8 @@ typedef struct
 	uint16_t protoType;
 } __attribute__((packed)) ether80211q_t;
 
+
+// GTPv1 frame definition:
 // stuff coming from http://lxr.free-electrons.com/source/include/net/gtp.h
 
 struct gtp1_header {    /* According to 3GPP TS 29.060. */
@@ -130,14 +130,17 @@ struct gtp1_header {    /* According to 3GPP TS 29.060. */
 	__be32  tid;
 } __attribute__ ((packed));
 
+class Packet
+{
+public:
+	Packet(struct pcap_pkthdr* hdr = NULL, const u_char* data = NULL) { pcap_header=hdr; pcap_packet=data; }
 
+	size_t len() const				{ if (pcap_header) return pcap_header->caplen; else return 0; }
+	const u_char* data() const		{ return pcap_packet; }
 
-//------------------------------------------------------------------------------
-// Globals
-//------------------------------------------------------------------------------
-
-extern u_char g_buffer[MAX_SNAPLEN];
-extern bool g_verbose;
+	struct pcap_pkthdr*			pcap_header;
+	const u_char*				pcap_packet;
+};
 
 
 //------------------------------------------------------------------------------

@@ -24,9 +24,9 @@ public:
 	{
 		memset(&capture_filter, 0, sizeof(capture_filter));
 		memset(&gtpu_filter, 0, sizeof(gtpu_filter));
-		capture_filter_set = FALSE;
-		gtpu_filter_set = FALSE;
-		valid_tcp_filter = FALSE;
+		capture_filter_set = false;
+		gtpu_filter_set = false;
+		valid_tcp_filter = false;
 		string_filter = NULL;
 	}
 
@@ -56,7 +56,6 @@ public:
 // Functions
 //------------------------------------------------------------------------------
 
-extern bool must_be_saved(struct pcap_pkthdr* pcap_header, const u_char* pcap_packet,
-							const FilterCriteria* filter, bool* is_gtpu);
+extern bool must_be_saved(const Packet& pkt, const FilterCriteria* filter, bool* is_gtpu);
 
 #endif	// FILTER_H_

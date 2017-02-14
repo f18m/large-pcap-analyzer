@@ -64,16 +64,18 @@ public:
 };
 
 
+
 //------------------------------------------------------------------------------
 // Functions
 //------------------------------------------------------------------------------
 
-extern ParserRetCode_t get_transport_offset(const struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet, int* offsetTransportOut, int* ipprotOut);
-extern ParserRetCode_t get_gtpu_inner_ip_offset(const struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet, int* offsetIpInner, int* ipver);
-extern ParserRetCode_t get_gtpu_inner_transport_offset(const struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet, int* offsetTransportInner, int* ipprotInner);
+extern ParserRetCode_t get_transport_start_offset(const Packet& pkt, int* offsetTransportOut, int* ipprotOut, int* remainingLen);
 
-extern void update_parsing_stats(const struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet, ParsingStats& outstats);
+extern ParserRetCode_t get_gtpu_inner_ip_start_offset(const Packet& pkt, int* offsetIpInner, int* ipver, int* remainingLen);
+extern ParserRetCode_t get_gtpu_inner_transport_start_offset(const Packet& pkt, int* offsetTransportInner, int* ipprotInner, int* remainingLen);
 
-extern flow_hash_t compute_flow_hash(const struct pcap_pkthdr* pcap_header, const u_char* const pcap_packet);
+extern void update_parsing_stats(const Packet& pkt, ParsingStats& outstats);
+
+extern flow_hash_t compute_flow_hash(const Packet& pkt);
 
 #endif		// PARSE_H_
