@@ -771,7 +771,7 @@ uninstall-am: uninstall-binPROGRAMS
 .PRECIOUS: Makefile
 
 
-check:
+check: $(bin_PROGRAMS)
 	cd test-pcaps && ./run_tests.sh
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
