@@ -105,11 +105,11 @@ static bool apply_filter_on_inner_ip_frame(const Packet& pkt,
 // Global Functions
 //------------------------------------------------------------------------------
 
-bool must_be_saved(const Packet& pkt, const FilterCriteria* filter, bool* is_gtpu)
+bool must_be_saved(const Packet& pkt, const FilterCriteria* filter, bool* is_gtpu)	// will do a logical OR of all filters set
 {
 	// string-search filter:
 
-	if (filter->string_filter)
+	if (UNLIKELY( filter->string_filter != NULL ))
 	{
 		unsigned int len = MIN(pkt.len(), MAX_SNAPLEN);
 
@@ -125,7 +125,7 @@ bool must_be_saved(const Packet& pkt, const FilterCriteria* filter, bool* is_gtp
 
 	// PCAP capture filter:
 
-	if (filter->capture_filter_set)
+	if (UNLIKELY( filter->capture_filter_set ))
 	{
 		int ret = pcap_offline_filter(&filter->capture_filter, pkt.pcap_header, pkt.pcap_packet);
 		if (ret != 0)
@@ -140,11 +140,11 @@ bool must_be_saved(const Packet& pkt, const FilterCriteria* filter, bool* is_gtp
 
 	// GTPu capture filter:
 
-	if (filter->gtpu_filter_set)
+	if (UNLIKELY( filter->gtpu_filter_set ))
 	{
 		// is this a GTPu packet?
 		int offset = 0, ipver = 0, len_after_inner_ip_start = 0;
-		ParserRetCode_t errcode = get_gtpu_inner_ip_start_offset(pkt, &offset, &ipver, &len_after_inner_ip_start);
+		ParserRetCode_t errcode = get_gtpu_inner_ip_start_offset(pkt, &offset, &ipver, &len_after_inner_ip_start, NULL);
 		if (errcode == GPRC_VALID_PKT)
 		{
 			if (is_gtpu) *is_gtpu = true;
@@ -161,16 +161,28 @@ bool must_be_saved(const Packet& pkt, const FilterCriteria* filter, bool* is_gtp
 
 	// valid-TCP-stream filter:
 
-	if (filter->valid_tcp_filter)
+	if (UNLIKELY( filter->valid_tcp_filter_mode != TCP_FILTER_NOT_ACTIVE ))
 	{
 		flow_hash_t hash = compute_flow_hash(pkt);
-
 		if (hash != INVALID_FLOW_HASH)
 		{
 			flow_map_t::const_iterator entry = filter->valid_tcp_firstpass_flows.find(hash);
-			if (entry != filter->valid_tcp_firstpass_flows.end() &&
-					entry->second == FLOW_FOUND_SYN_AND_SYNACK)
-				return true;   // useless to proceed! in the 1st run this connection was tagged as VALID
+			if (entry != filter->valid_tcp_firstpass_flows.end())
+			{
+				switch (filter->valid_tcp_filter_mode)
+				{
+				case TCP_FILTER_CONN_HAVING_SYN:
+					if (entry->second >= FLOW_FOUND_SYN_AND_SYNACK)
+						return true;   // this TCP packet belongs to a connection that in the 1st pass was detected as having at least one SYN
+					break;
+				case TCP_FILTER_CONN_HAVING_FULL_3WAY_HANDSHAKE:
+					if (entry->second == FLOW_FOUND_SYN_AND_SYNACK_AND_ACK)
+						return true;   // this TCP packet belongs to a connection that in the 1st pass was detected as having the full 3way handshake
+					break;
+				default:
+					assert(0);
+				}
+			}
 		}
 	}
 

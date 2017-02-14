@@ -27,8 +27,10 @@ typedef enum
 
 typedef enum
 {
+	FLOW_FOUND = 1,
 	FLOW_FOUND_SYN,
 	FLOW_FOUND_SYN_AND_SYNACK,
+	FLOW_FOUND_SYN_AND_SYNACK_AND_ACK,
 } FlowStatus_t;
 
 typedef uint64_t   flow_hash_t;								// init to INVALID_FLOW_HASH
@@ -69,10 +71,10 @@ public:
 // Functions
 //------------------------------------------------------------------------------
 
-extern ParserRetCode_t get_transport_start_offset(const Packet& pkt, int* offsetTransportOut, int* ipprotOut, int* remainingLen);
+extern ParserRetCode_t get_transport_start_offset(const Packet& pkt, int* offsetTransportOut, int* ipprotOut, int* remainingLen, flow_hash_t* hash);
 
-extern ParserRetCode_t get_gtpu_inner_ip_start_offset(const Packet& pkt, int* offsetIpInner, int* ipver, int* remainingLen);
-extern ParserRetCode_t get_gtpu_inner_transport_start_offset(const Packet& pkt, int* offsetTransportInner, int* ipprotInner, int* remainingLen);
+extern ParserRetCode_t get_gtpu_inner_ip_start_offset(const Packet& pkt, int* offsetIpInner, int* ipver, int* remainingLen, flow_hash_t* hash);
+extern ParserRetCode_t get_gtpu_inner_transport_start_offset(const Packet& pkt, int* offsetTransportInner, int* ipprotInner, int* remainingLen, flow_hash_t* hash);
 
 extern void update_parsing_stats(const Packet& pkt, ParsingStats& outstats);
 

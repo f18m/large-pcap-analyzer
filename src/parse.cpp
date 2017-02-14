@@ -54,59 +54,186 @@
 // Static Functions
 //------------------------------------------------------------------------------
 
-#if !defined (hw_get16bits)
-#define hw_get16bits(d) ((((uint32_t)(((const u_int8_t *)(d))[1])) << 8)\
-                       +(uint32_t)(((const u_int8_t *)(d))[0]) )
-#endif
+// Compression function for Merkle-Damgard construction.
+#define fasthash64_mix(h) ({				\
+			(h) ^= (h) >> 23;				\
+			(h) *= 0x2127599bf4325c37ULL;	\
+			(h) ^= (h) >> 47; })
 
-static uint32_t hw_fasthash(const void *buf, size_t len, uint64_t offset)
+static
+uint64_t FastHash64(const char* buf, uint32_t len, uint64_t seed)
 {
-	const char* data = (const char*)buf;
-	uint32_t hash = len, tmp;
-	int rem;
+	const uint64_t    m = 0x880355f21e6d1965ULL;
+	const uint64_t *pos = (const uint64_t *)buf;
+	const uint64_t *end = pos + (len / 8);
+	const unsigned char *pos2;
+	uint64_t h = seed ^ (len * m);
+	uint64_t v;
 
-	rem = len & 3;
-	len >>= 2;
-
-	/* Main loop */
-	for (;len > 0; len--) {
-		hash  += hw_get16bits (data);
-		tmp    = (hw_get16bits (data+2) << 11) ^ hash;
-		hash   = (hash << 16) ^ tmp;
-		data  += 2*sizeof (u_int16_t);
-		hash  += hash >> 11;
+	while (pos != end) {
+		v  = *pos++;
+		h ^= fasthash64_mix(v);
+		h *= m;
 	}
 
-	/* Handle end cases */
-	switch (rem) {
-		case 3: hash += hw_get16bits (data);
-				hash ^= hash << 16;
-				hash ^= data[sizeof (u_int16_t)] << 18;
-				hash += hash >> 11;
-				break;
-		case 2: hash += hw_get16bits (data);
-				hash ^= hash << 11;
-				hash += hash >> 17;
-				break;
-		case 1: hash += *data;
-				hash ^= hash << 10;
-				hash += hash >> 1;
-				break;
+	pos2 = (const unsigned char*)pos;
+	v = 0;
+
+	switch (len & 7) {
+	case 7: v ^= (uint64_t)pos2[6] << 48;
+	/* no break */
+	case 6: v ^= (uint64_t)pos2[5] << 40;
+	/* no break */
+	case 5: v ^= (uint64_t)pos2[4] << 32;
+	/* no break */
+	case 4: v ^= (uint64_t)pos2[3] << 24;
+	/* no break */
+	case 3: v ^= (uint64_t)pos2[2] << 16;
+	/* no break */
+	case 2: v ^= (uint64_t)pos2[1] << 8;
+	/* no break */
+	case 1: v ^= (uint64_t)pos2[0];
+		h ^= fasthash64_mix(v);
+		h *= m;
 	}
 
-	/* Force "avalanching" of final 127 bits */
-	hash ^= hash << 3;
-	hash += hash >> 5;
-	hash ^= hash << 4;
-	hash += hash >> 17;
-	hash ^= hash << 25;
-	hash += hash >> 6;
-
-	return hash+offset;
+	return fasthash64_mix(h);
 }
 
 static
-ParserRetCode_t get_ip_start_offset(const Packet& pkt, int* offsetOut, int* ipver, int* remainingLen)
+ParserRetCode_t do_ip_layer_parse(const Packet& pkt,
+									int offset,
+									int* offsetOut, int* ipver, int* remainingLen, flow_hash_t* hashIP)
+{
+	// parse IPv4/v6 layer
+
+	const struct ip* ip = (const struct ip*) (pkt.data() + offset);
+	const struct ip6_hdr* ip6 = (const struct ip6_hdr*)(pkt.data() + offset);
+
+	uint16_t ip_total_len = 0;
+	uint16_t ip_hdr_len = 0;
+	switch(ip->ip_v)
+	{
+	case 4:
+		if (UNLIKELY( pkt.len() < (offset + sizeof(struct ip)) ))
+			return GPRC_TOO_SHORT_PKT;		// Packet too short
+
+		ip_total_len = ntohs(ip->ip_len);							// IMPORTANT: in IPv4 the "ip_len" does include the size of the IPv4 header!
+		ip_hdr_len = (uint16_t)(ip->ip_hl) * 4;
+		if (UNLIKELY(hashIP != NULL))
+		{
+			uint64_t flow_hash = FastHash64((const char*)&ip->ip_src,sizeof(ip->ip_src),0) +
+									FastHash64((const char*)&ip->ip_dst,sizeof(ip->ip_dst),0);
+			*hashIP += flow_hash;
+		}
+		break;
+
+	case 6:
+		if (UNLIKELY( pkt.len() < (offset + sizeof(struct ip6_hdr)) ))
+			return GPRC_TOO_SHORT_PKT;		// Packet too short
+
+		ip_total_len = sizeof(struct ip6_hdr) + ntohs(ip6->ip6_ctlun.ip6_un1.ip6_un1_plen);   // IMPORTANT: in IPv6 the "ip6_un1_plen" field does not include the size of the IPv6 header!
+		ip_hdr_len = sizeof(struct ip6_hdr);
+		if (UNLIKELY(hashIP != NULL))
+		{
+			uint64_t flow_hash = FastHash64((const char*)&ip6->ip6_src, IPV6_LEN, 0) +
+									FastHash64((const char*)&ip6->ip6_dst, IPV6_LEN, 0);
+			*hashIP += flow_hash;
+		}
+		break;
+
+	default:
+		return GPRC_INVALID_PKT;		// wrong packet
+	}
+
+	if (UNLIKELY( ip_hdr_len >= ip_total_len ))
+		return GPRC_INVALID_PKT;		// wrong packet
+
+
+	// ok, found the offset of IPv4/IPv6 layer
+
+	if (offsetOut)
+		*offsetOut = offset;
+	if (ipver)
+		*ipver = ip->ip_v;
+	if (remainingLen)
+		*remainingLen = ip_total_len;
+
+	return GPRC_VALID_PKT;
+}
+
+static
+ParserRetCode_t do_transport_layer_parse(const Packet& pkt,
+										int ipStartOffset, int ipver, int len_after_ip_start,
+										int* offsetTransportOut, int* ipprotOut, int* remainingLen, flow_hash_t* hashPorts)
+{
+	const struct ip* ip = NULL;
+	struct ip6_hdr* ipv6 = NULL;
+	int ip_proto = 0;
+	uint16_t ip_hdr_len = 0;
+
+	if (ipver == 4)
+	{
+		ip = (const struct ip*) (pkt.data() + ipStartOffset);
+		ip_proto = ip->ip_p;
+		ip_hdr_len = (uint16_t)(ip->ip_hl) * 4;
+	}
+	else
+	{
+		ipv6 = (struct ip6_hdr*) (pkt.data() + ipStartOffset);
+		ip_proto = ipv6->ip6_ctlun.ip6_un1.ip6_un1_nxt;
+		ip_hdr_len = sizeof(struct ip6_hdr);		// fixed size
+	}
+	unsigned int transportStartOffset = ipStartOffset + ip_hdr_len;
+
+
+	// check there are enough bytes remaining
+	switch(ip_proto)
+	{
+	case IPPROTO_TCP:
+		if (UNLIKELY( pkt.len() < (transportStartOffset + sizeof(struct tcphdr))))
+			return GPRC_TOO_SHORT_PKT;		// Packet too short
+		if (UNLIKELY(hashPorts != NULL))
+		{
+			const struct tcphdr* tcp = (const struct tcphdr*)(pkt.data() + transportStartOffset);
+			uint64_t flow_hash = FastHash64((const char*)&tcp->source, sizeof(tcp->source), 0) +
+									FastHash64((const char*)&tcp->dest, sizeof(tcp->dest), 0);
+			*hashPorts += flow_hash;
+		}
+		break;
+	case IPPROTO_UDP:
+		if (UNLIKELY( pkt.len() < (transportStartOffset + sizeof(struct udphdr))))
+			return GPRC_TOO_SHORT_PKT;		// Packet too short
+		break;
+#if 0
+	case IPPROTO_SCTP:
+		if (UNLIKELY( pkt.len() < (transportStartOffset + sizeof(struct sctphdr))))
+			return GPRC_TOO_SHORT_PKT;		// Packet too short
+		break;
+#endif
+	default:
+		break;
+	}
+
+
+	// ok, found the ipStartOffset for a valid UDP/TCP layer
+
+	if (offsetTransportOut)
+		*offsetTransportOut = transportStartOffset;
+	if (ipprotOut)
+		*ipprotOut = ip_proto;
+	if (remainingLen)
+		*remainingLen = len_after_ip_start - ip_hdr_len;
+
+	return GPRC_VALID_PKT;
+}
+
+
+//------------------------------------------------------------------------------
+// Global Functions
+//------------------------------------------------------------------------------
+
+ParserRetCode_t get_ip_start_offset(const Packet& pkt, int* offsetOut, int* ipver, int* remainingLen, flow_hash_t* hashIP)
 {
 	unsigned int offset = 0;
 
@@ -134,131 +261,28 @@ ParserRetCode_t get_ip_start_offset(const Packet& pkt, int* offsetOut, int* ipve
 
 	// parse IPv4/v6 layer
 
-	const struct ip* ip = (const struct ip*) (pkt.data() + offset);
-	const struct ip6_hdr* ip6 = (const struct ip6_hdr*)(pkt.data() + offset);
-
-	uint16_t ip_total_len = 0;
-	uint16_t ip_hdr_len = 0;
-	switch(ip->ip_v)
-	{
-	case 4:
-		if (UNLIKELY( pkt.len() < (offset + sizeof(struct ip)) ))
-			return GPRC_TOO_SHORT_PKT;		// Packet too short
-
-		ip_total_len = ntohs(ip->ip_len);
-		ip_hdr_len = (uint16_t)(ip->ip_hl) * 4;
-		break;
-
-	case 6:
-		if (UNLIKELY( pkt.len() < (offset + sizeof(struct ip6_hdr)) ))
-			return GPRC_TOO_SHORT_PKT;		// Packet too short
-
-		ip_total_len = ntohs(ip6->ip6_ctlun.ip6_un1.ip6_un1_plen);
-		ip_hdr_len = sizeof(struct ip6_hdr);
-		break;
-
-	default:
-		return GPRC_INVALID_PKT;		// wrong packet
-	}
-
-	if (UNLIKELY( ip_hdr_len >= ip_total_len ))
-		return GPRC_INVALID_PKT;		// wrong packet
-
-
-	// ok, found the offset of IPv4/IPv6 layer
-
-	if (offsetOut)
-		*offsetOut = offset;
-	if (ipver)
-		*ipver = ip->ip_v;
-	if (remainingLen)
-		*remainingLen = ip_total_len;
-
-	return GPRC_VALID_PKT;
+	return do_ip_layer_parse(pkt, offset, offsetOut, ipver, remainingLen, hashIP);
 }
 
-ParserRetCode_t do_transport_layer_parse(const Packet& pkt,
-										int ipStartOffset, int ipver, int len_after_ip_start,
-										int* offsetTransportOut, int* ipprotOut, int* remainingLen)
-{
-	const struct ip* ip = NULL;
-	struct ip6_hdr* ipv6 = NULL;
-	int ip_proto = 0;
-	uint16_t ip_hdr_len = 0;
-
-	if (ipver == 4)
-	{
-		ip = (const struct ip*) (pkt.data() + ipStartOffset);
-		ip_proto = ip->ip_p;
-		ip_hdr_len = (uint16_t)(ip->ip_hl) * 4;
-	}
-	else
-	{
-		ipv6 = (struct ip6_hdr*) (pkt.data() + ipStartOffset);
-		ip_proto = ipv6->ip6_ctlun.ip6_un1.ip6_un1_nxt;
-		ip_hdr_len = sizeof(struct ip6_hdr);		// fixed size
-	}
-	ipStartOffset += ip_hdr_len;
-
-
-	// check there are enough bytes remaining
-	switch(ip_proto)
-	{
-	case IPPROTO_TCP:
-		if (UNLIKELY( pkt.len() < (ipStartOffset + sizeof(struct tcphdr))))
-			return GPRC_TOO_SHORT_PKT;		// Packet too short
-		break;
-	case IPPROTO_UDP:
-		if (UNLIKELY( pkt.len() < (ipStartOffset + sizeof(struct udphdr))))
-			return GPRC_TOO_SHORT_PKT;		// Packet too short
-		break;
-#if 0
-	case IPPROTO_SCTP:
-		if (UNLIKELY( pkt.len() < (ipStartOffset + sizeof(struct sctphdr))))
-			return GPRC_TOO_SHORT_PKT;		// Packet too short
-		break;
-#endif
-	default:
-		break;
-	}
-
-
-	// ok, found the ipStartOffset for a valid UDP/TCP layer
-
-	if (offsetTransportOut)
-		*offsetTransportOut = ipStartOffset;
-	if (ipprotOut)
-		*ipprotOut = ip_proto;
-	if (remainingLen)
-		*remainingLen = len_after_ip_start - ip_hdr_len;
-
-	return GPRC_VALID_PKT;
-}
-
-
-//------------------------------------------------------------------------------
-// Global Functions
-//------------------------------------------------------------------------------
-
-ParserRetCode_t get_transport_start_offset(const Packet& pkt, int* offsetTransportOut, int* ipprotOut, int* remainingLen)
+ParserRetCode_t get_transport_start_offset(const Packet& pkt, int* offsetTransportOut, int* ipprotOut, int* remainingLen, flow_hash_t* hash)
 {
 	int ipStartOffset = 0, ipver = 0, len_after_ip_start = 0;
-	ParserRetCode_t ret = get_ip_start_offset(pkt, &ipStartOffset, &ipver, &len_after_ip_start);
+	ParserRetCode_t ret = get_ip_start_offset(pkt, &ipStartOffset, &ipver, &len_after_ip_start, hash);
 	if (UNLIKELY(ret != GPRC_VALID_PKT))
 		return ret;
 
 	return do_transport_layer_parse(pkt, ipStartOffset, ipver, len_after_ip_start,
-									offsetTransportOut, ipprotOut, remainingLen);
+									offsetTransportOut, ipprotOut, remainingLen, hash);
 }
 
 //------------------------------------------------------------------------------
 // Global Functions - GTPu parsing
 //------------------------------------------------------------------------------
 
-ParserRetCode_t get_gtpu_inner_ip_start_offset(const Packet& pkt, int* offsetIpInner, int* ipver, int* remainingLen)
+ParserRetCode_t get_gtpu_inner_ip_start_offset(const Packet& pkt, int* offsetIpInner, int* ipver, int* remainingLen, flow_hash_t* hash)
 {
 	int offset = 0, ip_prot = 0;
-	ParserRetCode_t ret = get_transport_start_offset(pkt, &offset, &ip_prot, NULL);
+	ParserRetCode_t ret = get_transport_start_offset(pkt, &offset, &ip_prot, NULL, hash);
 	if (UNLIKELY(ret != GPRC_VALID_PKT))
 		return ret;
 	if (UNLIKELY(ip_prot != IPPROTO_UDP))
@@ -333,59 +357,18 @@ ParserRetCode_t get_gtpu_inner_ip_start_offset(const Packet& pkt, int* offsetIpI
 
 	// check that a valid IPv4 layer is following
 
-	const struct ip* ipinner = (const struct ip*) (pkt.data() + offset);
-	const struct ip6_hdr* ip6inner = (const struct ip6_hdr*)(pkt.data() + offset);
-
-	uint16_t ip_total_len = 0;
-	uint16_t ip_hdr_len = 0;
-	switch(ipinner->ip_v)
-	{
-	case 4:
-		if (UNLIKELY(pkt.len() < (offset + sizeof(struct ip)) ))
-			return GPRC_TOO_SHORT_PKT;		// Packet too short
-
-		ip_total_len = ntohs(ipinner->ip_len);
-		ip_hdr_len = (uint16_t)(ipinner->ip_hl) * 4;
-		break;
-
-	case 6:
-		if (UNLIKELY(pkt.len() < (offset + sizeof(struct ip6_hdr)) ))
-			return GPRC_TOO_SHORT_PKT;		// Packet too short
-
-		ip_total_len = ntohs(ip6inner->ip6_ctlun.ip6_un1.ip6_un1_plen);
-		ip_hdr_len = sizeof(struct ip6_hdr);
-		break;
-
-	default:
-		return GPRC_INVALID_PKT;		// wrong packet
-	}
-
-	if (UNLIKELY( ip_hdr_len >= ip_total_len ))
-		return GPRC_INVALID_PKT;		// wrong packet
-
-
-
-	// ok, found the offset for a valid GTPu packet
-
-	if (offsetIpInner)
-		*offsetIpInner = offset;
-	if (ipver)
-		*ipver = ipinner->ip_v;
-	if (remainingLen)
-		*remainingLen = ip_total_len;
-
-	return GPRC_VALID_PKT;
+	return do_ip_layer_parse(pkt, offset, offsetIpInner, ipver, remainingLen, hash);
 }
 
-ParserRetCode_t get_gtpu_inner_transport_start_offset(const Packet& pkt, int* offsetTransportInner, int* ipprotInner, int* remainingLen)
+ParserRetCode_t get_gtpu_inner_transport_start_offset(const Packet& pkt, int* offsetTransportInner, int* ipprotInner, int* remainingLen, flow_hash_t* hash)
 {
 	int ipStartOffset = 0, ipver = 0, len_after_ip_start = 0;
-	ParserRetCode_t ret = get_gtpu_inner_ip_start_offset(pkt, &ipStartOffset, &ipver, &len_after_ip_start);
+	ParserRetCode_t ret = get_gtpu_inner_ip_start_offset(pkt, &ipStartOffset, &ipver, &len_after_ip_start, hash);
 	if (UNLIKELY(ret != GPRC_VALID_PKT))
 		return ret;
 
 	return do_transport_layer_parse(pkt, ipStartOffset, ipver, len_after_ip_start,
-									offsetTransportInner, ipprotInner, remainingLen);
+									offsetTransportInner, ipprotInner, remainingLen, hash);
 }
 
 
@@ -402,7 +385,7 @@ void update_parsing_stats(const Packet& pkt, ParsingStats& outstats)
 
 	// TODO: this way to do the stats is pretty much non-efficient:
 
-	ret = get_gtpu_inner_transport_start_offset(pkt, NULL, NULL, NULL);
+	ret = get_gtpu_inner_transport_start_offset(pkt, NULL, NULL, NULL, NULL);
 	if (ret == GPRC_VALID_PKT)
 	{
 		outstats.pkts_valid_gtpu_transport++;
@@ -410,7 +393,7 @@ void update_parsing_stats(const Packet& pkt, ParsingStats& outstats)
 	}
 	//else: try to parse inner layers
 
-	ret = get_gtpu_inner_ip_start_offset(pkt, NULL, NULL, NULL);
+	ret = get_gtpu_inner_ip_start_offset(pkt, NULL, NULL, NULL, NULL);
 	if (ret == GPRC_VALID_PKT)
 	{
 		outstats.pkts_valid_gtpu_ip++;
@@ -418,7 +401,7 @@ void update_parsing_stats(const Packet& pkt, ParsingStats& outstats)
 	}
 	//else: try to parse inner layers
 
-	ret = get_transport_start_offset(pkt, NULL, NULL, NULL);
+	ret = get_transport_start_offset(pkt, NULL, NULL, NULL, NULL);
 	if (ret == GPRC_VALID_PKT)
 	{
 		outstats.pkts_valid_tranport++;
@@ -426,7 +409,7 @@ void update_parsing_stats(const Packet& pkt, ParsingStats& outstats)
 	}
 	//else: try to parse inner layers
 
-	ret = get_ip_start_offset(pkt, NULL, NULL, NULL);
+	ret = get_ip_start_offset(pkt, NULL, NULL, NULL, NULL);
 	if (ret == GPRC_VALID_PKT)
 	{
 		outstats.pkts_valid_ip++;
@@ -445,32 +428,47 @@ void update_parsing_stats(const Packet& pkt, ParsingStats& outstats)
 flow_hash_t compute_flow_hash(const Packet& pkt)
 {
 	flow_hash_t flow_hash = INVALID_FLOW_HASH;
-	int offsetIp = 0, offsetTransport = 0, ip_prot = 0, ipver = 0;
+	int/* offsetIp = 0,*/ offsetTransport = 0, ip_prot = 0/*, ipver = 0*/;
 
-	// detect if this is an encapsulated packet or nto
-	ParserRetCode_t ret = get_gtpu_inner_ip_start_offset(pkt, &offsetIp, &ipver, NULL);
+	// detect if this is an encapsulated packet or not
+	ParserRetCode_t ret = get_gtpu_inner_transport_start_offset(pkt, &offsetTransport, &ip_prot, NULL, &flow_hash);
 	if (ret == GPRC_VALID_PKT)
 	{
+#if 0
 		ret = get_gtpu_inner_transport_start_offset(pkt, &offsetTransport, &ip_prot, NULL);
-		if (ret != GPRC_VALID_PKT)
+		if (UNLIKELY( ret != GPRC_VALID_PKT ))
 			return INVALID_FLOW_HASH;
-		if (ip_prot != IPPROTO_TCP)
+		if (UNLIKELY( ip_prot != IPPROTO_TCP ))
 			return INVALID_FLOW_HASH;		// we only compute hashes for TCP
+#else
+		if (UNLIKELY( ip_prot != IPPROTO_TCP ))
+			return INVALID_FLOW_HASH;		// we only compute hashes for TCP
+#endif
+
 	}
-	else		// not a GTPu packet
+	else		// not a GTPu packet... try parsing it as a non-encapsulated packet:
 	{
+#if 0
 		ParserRetCode_t ret = get_ip_start_offset(pkt, &offsetIp, &ipver, NULL);
-		if (ret != GPRC_VALID_PKT)
+		if (UNLIKELY( ret != GPRC_VALID_PKT ))
 			return INVALID_FLOW_HASH;
 
 		ret = get_transport_start_offset(pkt, &offsetTransport, &ip_prot, NULL);
-		if (ret != GPRC_VALID_PKT)
+		if (UNLIKELY( ret != GPRC_VALID_PKT ))
 			return INVALID_FLOW_HASH;
-		if (ip_prot != IPPROTO_TCP)
+		if (UNLIKELY( ip_prot != IPPROTO_TCP ))
 			return INVALID_FLOW_HASH;		// we only compute hashes for TCP
+#else
+		ret = get_transport_start_offset(pkt, &offsetTransport, &ip_prot, NULL, &flow_hash);
+		if (UNLIKELY( ret != GPRC_VALID_PKT ))
+			return INVALID_FLOW_HASH;
+		if (UNLIKELY( ip_prot != IPPROTO_TCP ))
+			return INVALID_FLOW_HASH;		// we only compute hashes for TCP
+#endif
+
 	}
 
-
+#if 0
 	// hash IP addresses
 
 	if (ipver == 4)
@@ -491,13 +489,13 @@ flow_hash_t compute_flow_hash(const Packet& pkt)
 
 	// hash ports
 
-	if (pkt.len() < (offsetTransport + sizeof(struct tcphdr)) )
+	if (UNLIKELY( pkt.len() < (offsetTransport + sizeof(struct tcphdr)) ))
 		return INVALID_FLOW_HASH;		// Packet too short
 
 	const struct tcphdr* tcp = (const struct tcphdr*)(pkt.data() + offsetTransport);
 
 	flow_hash += hw_fasthash(&tcp->source, sizeof(tcp->source), 0);
 	flow_hash += hw_fasthash(&tcp->dest, sizeof(tcp->dest), 0);
-
+#endif
 	return flow_hash;
 }

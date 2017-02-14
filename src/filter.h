@@ -17,6 +17,13 @@
 // Types
 //------------------------------------------------------------------------------
 
+typedef enum
+{
+	TCP_FILTER_NOT_ACTIVE,
+	TCP_FILTER_CONN_HAVING_SYN,
+	TCP_FILTER_CONN_HAVING_FULL_3WAY_HANDSHAKE,
+} TcpFilterMode;
+
 class FilterCriteria
 {
 public:
@@ -26,7 +33,7 @@ public:
 		memset(&gtpu_filter, 0, sizeof(gtpu_filter));
 		capture_filter_set = false;
 		gtpu_filter_set = false;
-		valid_tcp_filter = false;
+		valid_tcp_filter_mode = TCP_FILTER_NOT_ACTIVE;
 		string_filter = NULL;
 	}
 
@@ -47,7 +54,7 @@ public:
 
 	const char* 				string_filter;
 
-	bool 						valid_tcp_filter;
+	TcpFilterMode				valid_tcp_filter_mode;
 	flow_map_t 					valid_tcp_firstpass_flows;			// contains the result of the 1st pass
 };
 
