@@ -6,7 +6,6 @@
 //------------------------------------------------------------------------------
 
 #include "large-pcap-analyzer.h"
-#include <unordered_map>
 
 //------------------------------------------------------------------------------
 // Constants
@@ -35,7 +34,15 @@ typedef enum
 } FlowStatus_t;
 
 typedef uint64_t   flow_hash_t;								// init to INVALID_FLOW_HASH
-typedef std::unordered_map<flow_hash_t /* key */, FlowStatus_t /* value */>     flow_map_t;
+#if __cplusplus <= 199711L
+	// no C++11 support
+	#include <map>
+	typedef std::map<flow_hash_t /* key */, FlowStatus_t /* value */>     flow_map_t;
+#else
+	// C++11 support available
+	#include <unordered_map>
+	typedef std::unordered_map<flow_hash_t /* key */, FlowStatus_t /* value */>     flow_map_t;
+#endif
 
 class ParsingStats
 {

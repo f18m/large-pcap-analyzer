@@ -89,7 +89,9 @@ POST_UNINSTALL = :
 bin_PROGRAMS = large_pcap_analyzer$(EXEEXT)
 subdir = .
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/configure.ac
+am__aclocal_m4_deps = $(top_srcdir)/m4/ax_cxx_compile_stdcxx.m4 \
+	$(top_srcdir)/m4/ax_cxx_compile_stdcxx_11.m4 \
+	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 DIST_COMMON = $(srcdir)/Makefile.am $(top_srcdir)/configure \
@@ -195,9 +197,9 @@ CCDEPMODE = depmode=gcc3
 CFLAGS = 
 CPP = gcc -E
 CPPFLAGS = 
-CXX = g++
+CXX = g++ -std=c++11
 CXXDEPMODE = depmode=gcc3
-CXXFLAGS =  -Wall -Wextra -Werror -g -O0 -DDEBUG -std=c++11
+CXXFLAGS =  -Wall -Wextra -Werror -O3
 CYGPATH_W = echo
 DEFS = -DHAVE_CONFIG_H
 DEPDIR = .deps
@@ -207,6 +209,7 @@ ECHO_T =
 EGREP = /bin/grep -E
 EXEEXT = 
 GREP = /bin/grep
+HAVE_CXX11 = 1
 INSTALL = /usr/bin/install -c
 INSTALL_DATA = ${INSTALL} -m 644
 INSTALL_PROGRAM = ${INSTALL}

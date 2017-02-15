@@ -33,6 +33,8 @@ AS_IF([test "x$enable_debug" = "xyes"], [
 # Checks for programs.
 AC_PROG_CC
 AC_PROG_CXX
+AX_CXX_COMPILE_STDCXX_11([noext], [optional])
+
 AC_PROG_INSTALL
 AC_PROG_MAKE_SET
 
