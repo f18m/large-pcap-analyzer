@@ -6,7 +6,7 @@
 //------------------------------------------------------------------------------
 
 #include "large-pcap-analyzer.h"
-
+#include <unordered_map>
 
 //------------------------------------------------------------------------------
 // Constants
@@ -31,10 +31,11 @@ typedef enum
 	FLOW_FOUND_SYN,
 	FLOW_FOUND_SYN_AND_SYNACK,
 	FLOW_FOUND_SYN_AND_SYNACK_AND_ACK,
+	FLOW_FOUND_SYN_AND_SYNACK_AND_ACK_AND_DATA,
 } FlowStatus_t;
 
 typedef uint64_t   flow_hash_t;								// init to INVALID_FLOW_HASH
-typedef std::map<flow_hash_t /* key */, FlowStatus_t /* value */>     flow_map_t;
+typedef std::unordered_map<flow_hash_t /* key */, FlowStatus_t /* value */>     flow_map_t;
 
 class ParsingStats
 {

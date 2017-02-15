@@ -103,7 +103,7 @@ uint64_t FastHash64(const char* buf, uint32_t len, uint64_t seed)
 static
 ParserRetCode_t do_ip_layer_parse(const Packet& pkt,
 									int offset,
-									int* offsetOut, int* ipver, int* remainingLen, flow_hash_t* hashIP)
+									int* offsetOut, int* ipver, int* len_after_ip_start, flow_hash_t* hashIP)
 {
 	// parse IPv4/v6 layer
 
@@ -156,8 +156,8 @@ ParserRetCode_t do_ip_layer_parse(const Packet& pkt,
 		*offsetOut = offset;
 	if (ipver)
 		*ipver = ip->ip_v;
-	if (remainingLen)
-		*remainingLen = ip_total_len;
+	if (len_after_ip_start)
+		*len_after_ip_start = ip_total_len;
 
 	return GPRC_VALID_PKT;
 }
@@ -165,7 +165,7 @@ ParserRetCode_t do_ip_layer_parse(const Packet& pkt,
 static
 ParserRetCode_t do_transport_layer_parse(const Packet& pkt,
 										int ipStartOffset, int ipver, int len_after_ip_start,
-										int* offsetTransportOut, int* ipprotOut, int* remainingLen, flow_hash_t* hashPorts)
+										int* offsetTransportOut, int* ipprotOut, int* len_after_transport_start, flow_hash_t* hashPorts)
 {
 	const struct ip* ip = NULL;
 	struct ip6_hdr* ipv6 = NULL;
@@ -222,8 +222,8 @@ ParserRetCode_t do_transport_layer_parse(const Packet& pkt,
 		*offsetTransportOut = transportStartOffset;
 	if (ipprotOut)
 		*ipprotOut = ip_proto;
-	if (remainingLen)
-		*remainingLen = len_after_ip_start - ip_hdr_len;
+	if (len_after_transport_start)
+		*len_after_transport_start = len_after_ip_start - ip_hdr_len;
 
 	return GPRC_VALID_PKT;
 }
@@ -233,7 +233,7 @@ ParserRetCode_t do_transport_layer_parse(const Packet& pkt,
 // Global Functions
 //------------------------------------------------------------------------------
 
-ParserRetCode_t get_ip_start_offset(const Packet& pkt, int* offsetOut, int* ipver, int* remainingLen, flow_hash_t* hashIP)
+ParserRetCode_t get_ip_start_offset(const Packet& pkt, int* offsetOut, int* ipver, int* len_after_ip_start, flow_hash_t* hashIP)
 {
 	unsigned int offset = 0;
 
@@ -261,10 +261,10 @@ ParserRetCode_t get_ip_start_offset(const Packet& pkt, int* offsetOut, int* ipve
 
 	// parse IPv4/v6 layer
 
-	return do_ip_layer_parse(pkt, offset, offsetOut, ipver, remainingLen, hashIP);
+	return do_ip_layer_parse(pkt, offset, offsetOut, ipver, len_after_ip_start, hashIP);
 }
 
-ParserRetCode_t get_transport_start_offset(const Packet& pkt, int* offsetTransportOut, int* ipprotOut, int* remainingLen, flow_hash_t* hash)
+ParserRetCode_t get_transport_start_offset(const Packet& pkt, int* offsetTransportOut, int* ipprotOut, int* len_after_transport_start, flow_hash_t* hash)
 {
 	int ipStartOffset = 0, ipver = 0, len_after_ip_start = 0;
 	ParserRetCode_t ret = get_ip_start_offset(pkt, &ipStartOffset, &ipver, &len_after_ip_start, hash);
@@ -272,7 +272,7 @@ ParserRetCode_t get_transport_start_offset(const Packet& pkt, int* offsetTranspo
 		return ret;
 
 	return do_transport_layer_parse(pkt, ipStartOffset, ipver, len_after_ip_start,
-									offsetTransportOut, ipprotOut, remainingLen, hash);
+									offsetTransportOut, ipprotOut, len_after_transport_start, hash);
 }
 
 //------------------------------------------------------------------------------

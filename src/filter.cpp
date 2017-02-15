@@ -176,7 +176,11 @@ bool must_be_saved(const Packet& pkt, const FilterCriteria* filter, bool* is_gtp
 						return true;   // this TCP packet belongs to a connection that in the 1st pass was detected as having at least one SYN
 					break;
 				case TCP_FILTER_CONN_HAVING_FULL_3WAY_HANDSHAKE:
-					if (entry->second == FLOW_FOUND_SYN_AND_SYNACK_AND_ACK)
+					if (entry->second >= FLOW_FOUND_SYN_AND_SYNACK_AND_ACK)
+						return true;   // this TCP packet belongs to a connection that in the 1st pass was detected as having the full 3way handshake
+					break;
+				case TCP_FILTER_CONN_HAVING_FULL_3WAY_HANDSHAKE_AND_DATA:
+					if (entry->second == FLOW_FOUND_SYN_AND_SYNACK_AND_ACK_AND_DATA)
 						return true;   // this TCP packet belongs to a connection that in the 1st pass was detected as having the full 3way handshake
 					break;
 				default:

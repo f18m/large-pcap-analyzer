@@ -93,7 +93,11 @@ static void print_help()
 	printf(" -Y <tcpdump_filter>      the PCAP filter to apply on whole loaded packets (thus will apply on outer IP frames)\n");
 	printf(" -G <gtpu_tcpdump_filter> the PCAP filter to apply on inner GTPu frames (if any)\n");
 	printf(" -S <search-string>       a string filter to search on whole loaded packets\n");
-	printf(" -T <syn|full3way>        filter for entire TCP connections having at least 1 SYN (-T syn) or the full 3way handshake (-T full3way)\n");
+	printf(" -T <syn|full3way|full3way-data>\n");
+	printf("                          filter for entire TCP connections having \n");
+	printf("                            -T syn: at least 1 SYN packet\n");
+	printf("                            -T full3way: the full 3way handshake\n");
+	printf("                            -T full3way-data: the full 3way handshake and data packets\n");
 	printf("Inputs:\n");
 	printf(" somefile.pcap            the large PCAP to analyze (you can provide more than 1 file)\n");
 	printf("Note that the -Y and -G options accept filters expressed in tcpdump/pcap_filters syntax.\n");
@@ -105,7 +109,7 @@ static void print_help()
 static bool firstpass_process_pcap_handle_for_tcp_streams(pcap_t* pcap_handle_in, FilterCriteria* filter, unsigned long* nvalidflowsOUT)
 {
 	unsigned long nloaded_pkts = 0, ninvalid_pkts = 0, nnottcp_pkts = 0;
-	unsigned long nfound_streams = 0, nsyn_streams = 0, nsyn_synack_streams = 0, nfull3way_streams = 0;
+	unsigned long nfound_streams = 0, nsyn_streams = 0, nsyn_synack_streams = 0, nfull3way_streams = 0, nfull3way_with_data_streams = 0;
 	struct timeval start, stop;
 	const u_char *pcap_packet;
 	struct pcap_pkthdr *pcap_header;
@@ -127,12 +131,12 @@ static bool firstpass_process_pcap_handle_for_tcp_streams(pcap_t* pcap_handle_in
 		flow_hash_t hash=INVALID_FLOW_HASH;
 		bool is_tcp_syn=false, is_tcp_syn_ack=false, is_tcp_ack=false;
 
-		int offsetInnerTransport = 0, innerIpProt = 0;
-		ParserRetCode_t ret = get_gtpu_inner_transport_start_offset(pkt, &offsetInnerTransport, &innerIpProt, NULL, &hash);
+		int offsetInnerTransport = 0, innerIpProt = 0, len_after_transport_start = 0;
+		ParserRetCode_t ret = get_gtpu_inner_transport_start_offset(pkt, &offsetInnerTransport, &innerIpProt, &len_after_transport_start, &hash);
 		if (ret != GPRC_VALID_PKT)
 		{
 			// not a GTPu packet...try treating it as non-encapsulated TCP packet:
-			ParserRetCode_t ret = get_transport_start_offset(pkt, &offsetInnerTransport, &innerIpProt, NULL, &hash);
+			ParserRetCode_t ret = get_transport_start_offset(pkt, &offsetInnerTransport, &innerIpProt, &len_after_transport_start, &hash);
 			if (ret != GPRC_VALID_PKT)
 			{
 				offsetInnerTransport = 0;
@@ -166,6 +170,9 @@ static bool firstpass_process_pcap_handle_for_tcp_streams(pcap_t* pcap_handle_in
 			is_tcp_syn_ack=true;
 		if (tcp->syn == 0 && tcp->ack == 1)
 			is_tcp_ack=true;
+
+		int transport_hdr_len = 4*tcp->doff;
+		int len_after_transport_end = len_after_transport_start - transport_hdr_len;
 
 		if (is_tcp_syn)
 		{
@@ -202,11 +209,41 @@ static bool firstpass_process_pcap_handle_for_tcp_streams(pcap_t* pcap_handle_in
 			assert(!is_tcp_syn_ack);
 
 			flow_map_t::iterator entry = filter->valid_tcp_firstpass_flows.find(hash);
-			if (entry != filter->valid_tcp_firstpass_flows.end() &&
-					entry->second == FLOW_FOUND_SYN_AND_SYNACK)
+			if (entry != filter->valid_tcp_firstpass_flows.end())
 			{
-				entry->second = FLOW_FOUND_SYN_AND_SYNACK_AND_ACK;		// existing connection, found the 3way handshake for that!
-				nfull3way_streams++;
+				if (entry->second == FLOW_FOUND_SYN_AND_SYNACK)
+				{
+					entry->second = FLOW_FOUND_SYN_AND_SYNACK_AND_ACK;		// existing connection, found the 3way handshake for that!
+					nfull3way_streams++;
+
+					if (len_after_transport_end > 0)
+					{
+						entry->second = FLOW_FOUND_SYN_AND_SYNACK_AND_ACK_AND_DATA;		// existing connection, found the 1st data packet after 3way handshake
+						nfull3way_with_data_streams++;
+					}
+				}
+				else if (entry->second == FLOW_FOUND_SYN_AND_SYNACK_AND_ACK &&
+						len_after_transport_end > 0)
+				{
+					entry->second = FLOW_FOUND_SYN_AND_SYNACK_AND_ACK_AND_DATA;		// existing connection, found the 1st data packet after 3way handshake
+					nfull3way_with_data_streams++;
+				}
+			}
+		}
+		else if (len_after_transport_end > 0)
+		{
+			assert(!is_tcp_syn);
+			assert(!is_tcp_syn_ack);
+			assert(!is_tcp_ack);
+
+			// looks like a TCP data packet: no SYN/ACK flags and there is payload after TCP header
+
+			flow_map_t::iterator entry = filter->valid_tcp_firstpass_flows.find(hash);
+			if (entry != filter->valid_tcp_firstpass_flows.end() &&
+					entry->second == FLOW_FOUND_SYN_AND_SYNACK_AND_ACK)
+			{
+				entry->second = FLOW_FOUND_SYN_AND_SYNACK_AND_ACK_AND_DATA;		// existing connection, found the 1st data packet after 3way handshake
+				nfull3way_with_data_streams++;
 			}
 		}
 	}
@@ -216,8 +253,8 @@ static bool firstpass_process_pcap_handle_for_tcp_streams(pcap_t* pcap_handle_in
 	printf_verbose("Detected %lu invalid packets and %lu non-TCP packets (on total of %lu packets)\n",
 					ninvalid_pkts, nnottcp_pkts, nloaded_pkts);
 
-	printf("Detected flows:\n  Having at least 1SYN: %lu\n  Having SYN-SYNACK: %lu\n  Having full 3way handshake: %lu\n  Total TCP flows found: %lu\n",
-			nsyn_streams, nsyn_synack_streams, nfull3way_streams, nfound_streams);
+	printf("Detected flows:\n  Having at least 1SYN: %lu\n  Having SYN-SYNACK: %lu\n  Having full 3way handshake: %lu\n  Having full 3way handshake and data: %lu\n  Total TCP flows found: %lu\n",
+			nsyn_streams, nsyn_synack_streams, nfull3way_streams, nfull3way_with_data_streams, nfound_streams);
 
 	if (nvalidflowsOUT)
 		*nvalidflowsOUT = nfound_streams;
@@ -688,16 +725,20 @@ int main(int argc, char **argv)
 				valid_tcp_filter_mode = TCP_FILTER_CONN_HAVING_SYN;
 			else if (strcmp(optarg, "full3way") == 0)
 				valid_tcp_filter_mode = TCP_FILTER_CONN_HAVING_FULL_3WAY_HANDSHAKE;
+			else if (strcmp(optarg, "full3way-data") == 0)
+				valid_tcp_filter_mode = TCP_FILTER_CONN_HAVING_FULL_3WAY_HANDSHAKE_AND_DATA;
+			else
+				fprintf(stderr, "Unsupported TCP filtering mode: %s\n", optarg);
 			break;
 
 		case '?':
 			{
 				if (optopt == 'w' || optopt == 'Y' || optopt == 'G' || optopt == 's')
-					fprintf (stderr, "Option -%c requires an argument.\n", optopt);
+					fprintf(stderr, "Option -%c requires an argument.\n", optopt);
 				else if (isprint (optopt))
-					fprintf (stderr, "Unknown option `-%c'.\n", optopt);
+					fprintf(stderr, "Unknown option `-%c'.\n", optopt);
 				else
-					fprintf (stderr, "Unknown option character `\\x%x'.\n", optopt);
+					fprintf(stderr, "Unknown option character `\\x%x'.\n", optopt);
 			}
 			return 1;
 
@@ -710,7 +751,7 @@ int main(int argc, char **argv)
 	bool some_filter_set = (pcap_filter!=NULL) || (pcap_gtpu_filter!=NULL) || (search!=NULL) || (valid_tcp_filter_mode!=TCP_FILTER_NOT_ACTIVE);
 	if (some_filter_set && !outfile)
 	{
-		fprintf (stderr, "A filtering option (-Y, -G, -S or -T) was provided but no output file (-w) was specified... aborting.\n");
+		fprintf(stderr, "A filtering option (-Y, -G, -S or -T) was provided but no output file (-w) was specified... aborting.\n");
 		return 1;	// failure
 	}
 
@@ -725,7 +766,7 @@ int main(int argc, char **argv)
 	sa.sa_flags = SA_SIGINFO;			// use the advanced callback, specially useful because provides the PID of the signal sender
 	if (sigaction(SIGINT, &sa, NULL) < 0)
 	{
-		fprintf (stderr, "Failed to intercept signal %d.", SIGTERM);
+		fprintf(stderr, "Failed to intercept signal %d.", SIGTERM);
 		return 1;	// failure
 	}
 

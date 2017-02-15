@@ -197,7 +197,7 @@ CPP = gcc -E
 CPPFLAGS = 
 CXX = g++
 CXXDEPMODE = depmode=gcc3
-CXXFLAGS =  -Wall -Wextra -Werror -g -O0 -DDEBUG
+CXXFLAGS =  -Wall -Wextra -Werror -g -O0 -DDEBUG -std=c++11
 CYGPATH_W = echo
 DEFS = -DHAVE_CONFIG_H
 DEPDIR = .deps
