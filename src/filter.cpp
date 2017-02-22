@@ -109,14 +109,14 @@ bool must_be_saved(const Packet& pkt, const FilterCriteria* filter, bool* is_gtp
 {
 	// string-search filter:
 
-	if (UNLIKELY( filter->string_filter != NULL ))
+	if (UNLIKELY( !filter->string_filter.empty() ))
 	{
 		unsigned int len = MIN(pkt.len(), MAX_SNAPLEN);
 
 		memcpy(g_buffer, pkt.data(), len);
 		g_buffer[len] = '\0';
 
-		void* result = memmem(g_buffer, len, filter->string_filter, strlen(filter->string_filter));
+		void* result = memmem(g_buffer, len, filter->string_filter.c_str(), filter->string_filter.size());
 		if (result != NULL)
 			// string was found inside the packet!
 			return true;   // useless to proceed!

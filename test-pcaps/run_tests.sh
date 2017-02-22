@@ -83,6 +83,31 @@ function test_gtpu_filter()
 	done
 }
 
+function test_extract_conn_filter()
+{
+	echo "Testing -C option... comparing large_pcap_analyzer and tshark"
+	
+	# test extraction of a specific flow
+	test_file[1]=ipv4_gtpu_https.pcap
+	conn_filter[1]="10.85.73.237:49789 202.122.145.141:443"
+	tshark_filter[1]="ip.addr==10.85.73.237 && tcp.port==49789 && ip.addr==202.122.145.141 && tcp.port==443"
+	tshark_dissect_opt[1]=""
+				
+	rm /tmp/filter*
+	for testnum in $(seq 1 1); do
+		$lpa_binary -w /tmp/filter${testnum}-lpa.pcap -G "${pcap_filter[testnum]}" ${test_file[testnum]} >/dev/null
+		if [ $? -ne 0 ]; then echo "Failed test of PCAP filter (-G option)" ; exit 1 ; fi
+		
+		tshark -F pcap -w /tmp/filter${testnum}-tshark.pcap -r ${test_file[testnum]}  ${tshark_dissect_opt[testnum]}  "${tshark_filter[testnum]}" >/dev/null 2>&1
+		if [ $? -ne 0 ]; then echo "Failed test of PCAP filter (-G option)" ; exit 1 ; fi
+		
+		cmp --silent /tmp/filter${testnum}-lpa.pcap /tmp/filter${testnum}-tshark.pcap
+		if [ $? -ne 0 ]; then echo "large_pcap_analyzer and tshark produced different output (-G option); check /tmp/filter${testnum}-lpa.pcap and /tmp/filter${testnum}-tshark.pcap" ; exit 1 ; fi
+		
+		echo "  ... testcase #$testnum passed."
+	done
+}
+	
 function test_tcp_filter()
 {
 	echo "Testing -T option... comparing large_pcap_analyzer and tshark"
@@ -124,5 +149,6 @@ function test_tcp_filter()
 test_timing
 test_tcpdump_filter
 test_gtpu_filter
+test_extract_conn_filter
 test_tcp_filter
 echo "All tests passed successfully"

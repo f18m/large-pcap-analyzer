@@ -35,7 +35,6 @@ public:
 		capture_filter_set = false;
 		gtpu_filter_set = false;
 		valid_tcp_filter_mode = TCP_FILTER_NOT_ACTIVE;
-		string_filter = NULL;
 	}
 
 	~FilterCriteria()
@@ -46,6 +45,10 @@ public:
 			pcap_freecode(&gtpu_filter);
 	}
 
+	bool is_some_filter_active() const
+	{ return (capture_filter_set || gtpu_filter_set || !string_filter.empty() || valid_tcp_filter_mode != TCP_FILTER_NOT_ACTIVE); }
+
+
 public:
 	struct bpf_program 			capture_filter;
 	bool 						capture_filter_set;
@@ -53,7 +56,7 @@ public:
 	struct bpf_program 			gtpu_filter;
 	bool 						gtpu_filter_set;
 
-	const char* 				string_filter;
+	std::string					string_filter;
 
 	TcpFilterMode				valid_tcp_filter_mode;
 	flow_map_t 					valid_tcp_firstpass_flows;			// contains the result of the 1st pass

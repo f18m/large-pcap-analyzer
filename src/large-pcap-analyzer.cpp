@@ -43,6 +43,9 @@
 #include <linux/tcp.h>
 
 #include <signal.h>
+#include <sstream>
+#include <vector>
+#include <algorithm>
 
 
 //------------------------------------------------------------------------------
@@ -79,7 +82,7 @@ void printf_verbose(const char *fmtstr, ...)
 
 static void print_help()
 {
-	printf("%s [-h] [-v] [-t] [-p] [-a] [-w outfile.pcap] [-Y tcpdump_filter] [-G gtpu_tcpdump_filter] [-S string] [-T] somefile.pcap ...\n", PACKAGE_NAME);
+	printf("%s [-h] [-v] [-t] [-p] [-a] [-w outfile.pcap] [-Y tcpdump_filter] [-G gtpu_tcpdump_filter] [-C conn_filter] [-S string] [-T] somefile.pcap ...\n", PACKAGE_NAME);
 	printf("by Francesco Montorsi, (c) 2014-2017\n");
 	printf("version %s\n\n", PACKAGE_VERSION);
 	printf("Miscellaneous options:\n");
@@ -91,7 +94,8 @@ static void print_help()
 	printf(" -w <outfile.pcap>        where to save the PCAP containing the results of filtering\n");
 	printf("Filtering options (to select packets to save in outfile.pcap):\n");
 	printf(" -Y <tcpdump_filter>      the PCAP filter to apply on whole loaded packets (thus will apply on outer IP frames)\n");
-	printf(" -G <gtpu_tcpdump_filter> the PCAP filter to apply on inner GTPu frames (if any)\n");
+	printf(" -G <gtpu_tcpdump_filter> the PCAP filter to apply on inner/encapsulated GTPu frames (if any)\n");
+	printf(" -C <conn_filter>         4-tuple identifying a connection to filter; syntax is 'IP1:port1 IP2:port2'\n");
 	printf(" -S <search-string>       a string filter to search on whole loaded packets\n");
 	printf(" -T <syn|full3way|full3way-data>\n");
 	printf("                          filter for entire TCP connections having \n");
@@ -100,9 +104,14 @@ static void print_help()
 	printf("                            -T full3way-data: the full 3way handshake and data packets\n");
 	printf("Inputs:\n");
 	printf(" somefile.pcap            the large PCAP to analyze (you can provide more than 1 file)\n");
+	printf("\n");
 	printf("Note that the -Y and -G options accept filters expressed in tcpdump/pcap_filters syntax.\n");
 	printf("See http://www.manpagez.com/man/7/pcap-filter/ for more info.\n");
-	printf("\n");
+	printf("Other PCAP utilities you may be looking for are:\n");
+	printf(" * mergecap: to merge PCAP files\n");
+	printf(" * tcpdump: can be used to split PCAP files (and more)\n");
+	printf(" * editcap: can be used to manipulate timestamps in PCAP files (and more)\n");
+	printf(" * tcprewrite: can be used to rewrite some packet fields in PCAP files (and more)\n");
 	exit(0);
 }
 
@@ -277,7 +286,7 @@ static bool process_pcap_handle(pcap_t* pcap_handle_in,
 	struct pcap_pkthdr *pcap_header;
 	struct pcap_pkthdr first_pcap_header, last_pcap_header;
 
-	const char* pcapfilter_desc = filter->capture_filter_set ? " (matching PCAP filter)" : "";
+	const std::string& pcapfilter_desc = filter->capture_filter_set ? " (matching PCAP filter)" : "";
 
 	gettimeofday(&start, NULL);
 	while (!g_termination_requested && pcap_next_ex(pcap_handle_in, &pcap_header, &pcap_packet) > 0)
@@ -330,7 +339,7 @@ static bool process_pcap_handle(pcap_t* pcap_handle_in,
 
 
 	printf_verbose("Processing took %i seconds.\n", (int) (stop.tv_sec - start.tv_sec));
-	printf("%luM packets (%lu packets) were loaded from PCAP%s.\n", nloaded/MILLION, nloaded, pcapfilter_desc);
+	printf("%luM packets (%lu packets) were loaded from PCAP%s.\n", nloaded/MILLION, nloaded, pcapfilter_desc.c_str());
 
 	if (filter->gtpu_filter_set)
 		// in this case, the GTPu parser was run and we have a stat about how many packets are GTPu
@@ -339,7 +348,7 @@ static bool process_pcap_handle(pcap_t* pcap_handle_in,
 
 	if (pcap_dumper)
 	{
-		if (filter->capture_filter_set || filter->gtpu_filter_set || filter->string_filter || filter->valid_tcp_filter_mode != TCP_FILTER_NOT_ACTIVE)
+		if (filter->is_some_filter_active())
 		{
 			printf("%luM packets (%lu packets) matched the filtering criteria (search string / PCAP filters / TCP streams filter) and were saved into output PCAP.\n",
 					nmatching/MILLION, nmatching);
@@ -422,7 +431,7 @@ static pcap_dumper_t* pcap_dump_append( pcap_t* pcap,
         }
         else
         {
-            fprintf(stderr, "Couldn't open file: %s\n", pcap_errbuf);
+            fprintf(stderr, "Cannot open file: %s\n", pcap_errbuf);
             return NULL;
         }
     }
@@ -465,7 +474,7 @@ static pcap_dumper_t* pcap_dump_append( pcap_t* pcap,
 
         if (fwrite(&filehdr, sizeof(struct pcap_file_header), 1, result) != 1)
         {
-            D(("Couldn't write corrected file header.\n"));
+            D(("Cannot write corrected file header.\n"));
             goto error_return;
         }*/
         goto error_return;
@@ -518,7 +527,7 @@ int pcap_compile_nopcap_with_err(int snaplen_arg, int linktype_arg,
 	return ret;
 }*/
 
-static bool process_file(const char* infile, const char *outfile, bool outfile_append,
+static bool process_file(const std::string& infile, const std::string& outfile, bool outfile_append,
 							FilterCriteria *filter,
 							unsigned long* nloadedOUT, unsigned long* nmatchingOUT)
 {
@@ -528,12 +537,12 @@ static bool process_file(const char* infile, const char *outfile, bool outfile_a
 
 	struct stat st;
 	memset(&st, 0, sizeof(st));
-	stat(infile, &st);
+	stat(infile.c_str(), &st);
 
 	// open infile
-	pcap_handle_in = pcap_open_offline(infile, pcap_errbuf);
+	pcap_handle_in = pcap_open_offline(infile.c_str(), pcap_errbuf);
 	if (pcap_handle_in == NULL) {
-		fprintf(stderr, "Couldn't open file: %s\n", pcap_errbuf);
+		fprintf(stderr, "Cannot open file: %s\n", pcap_errbuf);
 		return false;
 	}
 	printf_verbose("Analyzing PCAP file '%s'...\n", infile);
@@ -542,27 +551,27 @@ static bool process_file(const char* infile, const char *outfile, bool outfile_a
 
 
 	// open outfile
-	if (outfile)
+	if (!outfile.empty())
 	{
 		if (outfile_append)
 		{
 			// NOTE: the PCAP produced by appending cannot be opened correctly by Wireshark in some cases...
 
-			pcap_dumper = pcap_dump_append(pcap_handle_in, outfile);
+			pcap_dumper = pcap_dump_append(pcap_handle_in, outfile.c_str());
 			if (pcap_dumper == NULL)
 				return false;
 
-			printf("Successfully opened output PCAP '%s' in APPEND mode\n", outfile);
+			printf("Successfully opened output PCAP '%s' in APPEND mode\n", outfile.c_str());
 		}
 		else
 		{
-			pcap_dumper = pcap_dump_open(pcap_handle_in, outfile);
+			pcap_dumper = pcap_dump_open(pcap_handle_in, outfile.c_str());
 			if (!pcap_dumper)
 			{
-				fprintf(stderr, "Couldn't open file: %s\n", pcap_geterr(pcap_handle_in));
+				fprintf(stderr, "Cannot open file: %s\n", pcap_geterr(pcap_handle_in));
 				return false;
 			}
-			printf("Successfully opened output PCAP '%s'\n", outfile);
+			printf("Successfully opened output PCAP '%s'\n", outfile.c_str());
 		}
 	}
 
@@ -590,9 +599,9 @@ static bool process_file(const char* infile, const char *outfile, bool outfile_a
 
 			// reopen infile
 			pcap_close(pcap_handle_in);
-			pcap_handle_in = pcap_open_offline(infile, pcap_errbuf);
+			pcap_handle_in = pcap_open_offline(infile.c_str(), pcap_errbuf);
 			if (pcap_handle_in == NULL) {
-				fprintf(stderr, "Couldn't open file: %s\n", pcap_errbuf);
+				fprintf(stderr, "Cannot open file: %s\n", pcap_errbuf);
 				return false;
 			}
 
@@ -617,7 +626,7 @@ static bool process_file(const char* infile, const char *outfile, bool outfile_a
 	}
 
 	// cleanup
-	if (outfile)
+	if (!outfile.empty())
 		pcap_dump_close(pcap_dumper);
 	pcap_close(pcap_handle_in);
 
@@ -625,32 +634,32 @@ static bool process_file(const char* infile, const char *outfile, bool outfile_a
 }
 
 static bool prepare_filter(FilterCriteria* out,
-								const char* pcap_filter_str, const char* gtpu_filter_str, const char* string_filter, TcpFilterMode valid_tcp_filter)
+								const std::string& pcap_filter_str, const std::string& gtpu_filter_str, const std::string& string_filter, TcpFilterMode valid_tcp_filter)
 {
 	// PCAP filter
-	if (pcap_filter_str)
+	if (!pcap_filter_str.empty())
 	{
-		if (pcap_compile_nopcap(MAX_SNAPLEN, DLT_EN10MB, &out->capture_filter, pcap_filter_str, 0 /* optimize */, PCAP_NETMASK_UNKNOWN) != 0) {
-			fprintf(stderr, "Couldn't parse PCAP filter\n");
+		if (pcap_compile_nopcap(MAX_SNAPLEN, DLT_EN10MB, &out->capture_filter, pcap_filter_str.c_str(), 0 /* optimize */, PCAP_NETMASK_UNKNOWN) != 0) {
+			fprintf(stderr, "Cannot parse PCAP filter: %s\n", pcap_filter_str.c_str());
 			return false;
 		}
 
 		out->capture_filter_set = true;
-		printf("Successfully compiled PCAP filter: %s\n", pcap_filter_str);
+		printf("Successfully compiled PCAP filter: %s\n", pcap_filter_str.c_str());
 	}
 
 
 	// GTPu PCAP filter
-	if (gtpu_filter_str)
+	if (!gtpu_filter_str.empty())
 	{
 
-		if (pcap_compile_nopcap(MAX_SNAPLEN, DLT_EN10MB, &out->gtpu_filter, gtpu_filter_str, 0 /* optimize */, PCAP_NETMASK_UNKNOWN) != 0) {
-			fprintf(stderr, "Couldn't parse GTPu filter\n");
+		if (pcap_compile_nopcap(MAX_SNAPLEN, DLT_EN10MB, &out->gtpu_filter, gtpu_filter_str.c_str(), 0 /* optimize */, PCAP_NETMASK_UNKNOWN) != 0) {
+			fprintf(stderr, "Cannot parse GTPu filter: %s\n", gtpu_filter_str.c_str());
 			return false;
 		}
 
 		out->gtpu_filter_set = true;
-		printf("Successfully compiled GTPu PCAP filter: %s\n", gtpu_filter_str);
+		printf("Successfully compiled GTPu PCAP filter: %s\n", gtpu_filter_str.c_str());
 	}
 
 
@@ -662,6 +671,62 @@ static bool prepare_filter(FilterCriteria* out,
 
 	return true;
 }
+
+static bool convert_extract_filter(const std::string& extract_filter, std::string& output_pcap_filter)
+{
+	std::istringstream iss(extract_filter);
+	std::string token;
+	std::vector<std::string> tokens;
+	while (std::getline(iss, token, ' '))
+		tokens.push_back(token);
+
+	std::vector<std::string> ip_port;
+	switch (tokens.size())
+	{
+		case 2:
+			for (int i=0; i<2; i++)
+			{
+				// assume the 2 tokens are IP:port strings
+				std::istringstream iss(tokens[i]);
+				std::string token;
+				while (std::getline(iss, token, ':'))
+					ip_port.push_back(token);
+			}
+
+			if (ip_port.size() != 4)
+			{
+				fprintf(stderr, "Expected an IP address and a port number separated by a colon; found: %s and %s invalid IP:port strings.\n",
+							tokens[0].c_str(), tokens[1].c_str());
+				return false;
+			}
+			break;
+
+		case 4:
+			// ok as is
+			ip_port = tokens;
+			break;
+
+		default:
+			fprintf(stderr, "Expected space-separated IP:port strings instead of %s\n", extract_filter.c_str());
+			return false;
+	}
+
+
+	// very bsaic IPv4 validation check; todo: ipv6
+
+	for (int i=0; i<4; i+=2)
+	{
+		if (std::count(ip_port[i].begin(), ip_port[i].end(), '.') != 3)
+		{
+			fprintf(stderr, "Expected a valid IPv4 address, found instead %s\n", ip_port[i].c_str());
+			return false;
+		}
+	}
+
+	output_pcap_filter = "host " + ip_port[0] + " && port " + ip_port[1] + " && host " + ip_port[2] + " && port " + ip_port[3];
+	return true;
+}
+
 
 //------------------------------------------------------------------------------
 // signal handler
@@ -681,13 +746,14 @@ int main(int argc, char **argv)
 {
 	int opt;
 	bool append = false;
-	char *outfile = NULL;
-	char *pcap_filter = NULL;
-	char *pcap_gtpu_filter = NULL;
-	char *search = NULL;
+	std::string outfile;
+	std::string pcap_filter;
+	std::string pcap_gtpu_filter;
+	std::string extract_filter;
+	std::string search;
 	TcpFilterMode valid_tcp_filter_mode = TCP_FILTER_NOT_ACTIVE;
 
-	while ((opt = getopt(argc, argv, "pthvaw:Y:G:S:T:")) != -1) {
+	while ((opt = getopt(argc, argv, "pthvaw:Y:G:C:S:T:")) != -1) {
 		switch (opt) {
 		case 'v':
 			g_verbose = true;
@@ -716,6 +782,9 @@ int main(int argc, char **argv)
 			break;
 		case 'G':
 			pcap_gtpu_filter = optarg;
+			break;
+		case 'C':
+			extract_filter = optarg;
 			break;
 		case 'S':
 			search = optarg;
@@ -748,13 +817,29 @@ int main(int argc, char **argv)
 	}
 
 
-	bool some_filter_set = (pcap_filter!=NULL) || (pcap_gtpu_filter!=NULL) || (search!=NULL) || (valid_tcp_filter_mode!=TCP_FILTER_NOT_ACTIVE);
-	if (some_filter_set && !outfile)
+	bool some_filter_set = !pcap_filter.empty() || !pcap_gtpu_filter.empty() || !extract_filter.empty() || !search.empty() || (valid_tcp_filter_mode!=TCP_FILTER_NOT_ACTIVE);
+	if (some_filter_set && outfile.empty())
 	{
-		fprintf(stderr, "A filtering option (-Y, -G, -S or -T) was provided but no output file (-w) was specified... aborting.\n");
+		fprintf(stderr, "A filtering option (-Y, -G, -C, -S or -T) was provided but no output file (-w) was specified... aborting.\n");
 		return 1;	// failure
 	}
 
+	if (!extract_filter.empty() && !pcap_gtpu_filter.empty())
+	{
+		fprintf(stderr, "Both -G and -C were specified: this is not supported.\n");
+		return 1;	// failure
+	}
+
+	if (!extract_filter.empty())
+	{
+		// extraction filters are just converted directly to PCAP GTPu filters
+		if (!convert_extract_filter(extract_filter, pcap_gtpu_filter))
+		{
+			fprintf(stderr, "Invalid format for the 4tuple argument of -C option: %s\n", extract_filter.c_str());
+			fprintf(stderr, "Syntax is 'IP1:port1 IP2:port2'\n");
+			return 1;	// failure
+		}
+	}
 
 
 	// install signal handler:
@@ -791,14 +876,16 @@ int main(int argc, char **argv)
 	}
 	else if (optind == argc-1)
 	{
-		if (outfile && strcmp(argv[optind], outfile) == 0)
+		std::string infile(argv[optind]);
+
+		if (!outfile.empty() && strcmp(infile.c_str(), outfile.c_str()) == 0)
 		{
-			fprintf(stderr, "The PCAP to analyze '%s' is also the dump PCAP?\n", outfile);
+			fprintf(stderr, "The PCAP to analyze '%s' is also the dump PCAP?\n", outfile.c_str());
 			return 1;
 		}
 
 		// just 1 input file
-		if (!process_file(argv[optind], outfile, append, &filter, NULL, NULL))
+		if (!process_file(infile.c_str(), outfile.c_str(), append, &filter, NULL, NULL))
 			return 2;
 	}
 	else
@@ -809,14 +896,14 @@ int main(int argc, char **argv)
 		int currfile = optind;
 		for (; currfile < argc; currfile++)
 		{
-			if (outfile && strcmp(argv[currfile], outfile) == 0)
+			if (!outfile.empty() && strcmp(argv[currfile], outfile.c_str()) == 0)
 			{
-				printf("Skipping the PCAP '%s': it is the dump PCAP specified with -w\n", outfile);
+				printf("Skipping the PCAP '%s': it is the dump PCAP specified with -w\n", outfile.c_str());
 				printf("\n");
 				continue;
 			}
 
-			if (!process_file(argv[currfile], outfile, append, &filter, &nloaded, &nmatching))
+			if (!process_file(argv[currfile], outfile.c_str(), append, &filter, &nloaded, &nmatching))
 				return 2;
 			printf("\n");
 

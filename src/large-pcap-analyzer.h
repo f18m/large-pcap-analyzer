@@ -15,6 +15,8 @@
  * v3.2 = reworked command-line arguments to match those of "tshark" command line utility;
  *        added support for GTPu-filtering (-G option)
  * v3.3 = added filtering for valid GTPu-encapsulated TCP connections (-T option)
+ * v3.4 = added modes (syn|3way|3way-data) to the -T option
+ * v3.4.2 = added -C option
  *
  *
  * LICENSE:

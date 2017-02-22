@@ -185,12 +185,12 @@ distuninstallcheck_listfiles = find . -type f -print
 am__distuninstallcheck_listfiles = $(distuninstallcheck_listfiles) \
   | sed 's|^\./|$(prefix)/|' | grep -v '$(infodir)/dir$$'
 distcleancheck_listfiles = find . -type f -print
-ACLOCAL = ${SHELL} /work/fmontorsi/mysw/large-pcap-analyzer/missing aclocal-1.15
+ACLOCAL = ${SHELL} /mnt/data/work/fmontorsi/mysw/large-pcap-analyzer/missing aclocal-1.15
 AMTAR = $${TAR-tar}
 AM_DEFAULT_VERBOSITY = 1
-AUTOCONF = ${SHELL} /work/fmontorsi/mysw/large-pcap-analyzer/missing autoconf
-AUTOHEADER = ${SHELL} /work/fmontorsi/mysw/large-pcap-analyzer/missing autoheader
-AUTOMAKE = ${SHELL} /work/fmontorsi/mysw/large-pcap-analyzer/missing automake-1.15
+AUTOCONF = ${SHELL} /mnt/data/work/fmontorsi/mysw/large-pcap-analyzer/missing autoconf
+AUTOHEADER = ${SHELL} /mnt/data/work/fmontorsi/mysw/large-pcap-analyzer/missing autoheader
+AUTOMAKE = ${SHELL} /mnt/data/work/fmontorsi/mysw/large-pcap-analyzer/missing automake-1.15
 AWK = gawk
 CC = gcc
 CCDEPMODE = depmode=gcc3
@@ -199,7 +199,7 @@ CPP = gcc -E
 CPPFLAGS = 
 CXX = g++ -std=c++11
 CXXDEPMODE = depmode=gcc3
-CXXFLAGS =  -Wall -Wextra -Werror -O3
+CXXFLAGS =  -Wall -Wextra -Werror -g -O0 -DDEBUG
 CYGPATH_W = echo
 DEFS = -DHAVE_CONFIG_H
 DEPDIR = .deps
@@ -219,25 +219,25 @@ LDFLAGS =
 LIBOBJS = 
 LIBS = -lpcap 
 LTLIBOBJS = 
-MAKEINFO = ${SHELL} /work/fmontorsi/mysw/large-pcap-analyzer/missing makeinfo
+MAKEINFO = ${SHELL} /mnt/data/work/fmontorsi/mysw/large-pcap-analyzer/missing makeinfo
 MKDIR_P = /bin/mkdir -p
 OBJEXT = o
 PACKAGE = large-pcap-analyzer
 PACKAGE_BUGREPORT = francesco.montorsi@gmail.com
 PACKAGE_NAME = large-pcap-analyzer
-PACKAGE_STRING = large-pcap-analyzer 3.4
+PACKAGE_STRING = large-pcap-analyzer 3.4.2
 PACKAGE_TARNAME = large-pcap-analyzer
 PACKAGE_URL = 
-PACKAGE_VERSION = 3.4
+PACKAGE_VERSION = 3.4.2
 PATH_SEPARATOR = :
 SET_MAKE = 
 SHELL = /bin/bash
 STRIP = 
-VERSION = 3.4
-abs_builddir = /work/fmontorsi/mysw/large-pcap-analyzer
-abs_srcdir = /work/fmontorsi/mysw/large-pcap-analyzer
-abs_top_builddir = /work/fmontorsi/mysw/large-pcap-analyzer
-abs_top_srcdir = /work/fmontorsi/mysw/large-pcap-analyzer
+VERSION = 3.4.2
+abs_builddir = /mnt/data/work/fmontorsi/mysw/large-pcap-analyzer
+abs_srcdir = /mnt/data/work/fmontorsi/mysw/large-pcap-analyzer
+abs_top_builddir = /mnt/data/work/fmontorsi/mysw/large-pcap-analyzer
+abs_top_srcdir = /mnt/data/work/fmontorsi/mysw/large-pcap-analyzer
 ac_ct_CC = gcc
 ac_ct_CXX = g++
 am__include = include
@@ -257,7 +257,7 @@ host_alias =
 htmldir = ${docdir}
 includedir = ${prefix}/include
 infodir = ${datarootdir}/info
-install_sh = ${SHELL} /work/fmontorsi/mysw/large-pcap-analyzer/install-sh
+install_sh = ${SHELL} /mnt/data/work/fmontorsi/mysw/large-pcap-analyzer/install-sh
 libdir = ${exec_prefix}/lib
 libexecdir = ${exec_prefix}/libexec
 localedir = ${datarootdir}/locale
@@ -281,6 +281,7 @@ top_srcdir = .
 
 # avoid warnings about this packet not being in GNU style:
 AUTOMAKE_OPTIONS = foreign subdir-objects
+ACLOCAL_AMFLAGS = -I m4
 large_pcap_analyzer_SOURCES = src/large-pcap-analyzer.cpp src/filter.cpp src/parse.cpp
 all: all-am
 
