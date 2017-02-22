@@ -46,6 +46,7 @@
 #include <sstream>
 #include <vector>
 #include <algorithm>
+#include <string>
 
 
 //------------------------------------------------------------------------------
@@ -294,7 +295,7 @@ static bool process_pcap_handle(pcap_t* pcap_handle_in,
 		Packet pkt(pcap_header, pcap_packet);
 
 		if ((nloaded % MILLION) == 0 && nloaded > 0)
-			printf_verbose("%luM packets loaded from PCAP%s...\n", nloaded/MILLION, pcapfilter_desc);
+			printf_verbose("%luM packets loaded from PCAP%s...\n", nloaded/MILLION, pcapfilter_desc.c_str());
 
 
 		// filter and save to output eventually
@@ -344,7 +345,7 @@ static bool process_pcap_handle(pcap_t* pcap_handle_in,
 	if (filter->gtpu_filter_set)
 		// in this case, the GTPu parser was run and we have a stat about how many packets are GTPu
 		printf_verbose("%luM packets (%lu packets) loaded from PCAP%s are GTPu packets (%.1f%%).\n",
-						ngtpu/MILLION, ngtpu, pcapfilter_desc, (double)(100.0*(double)(ngtpu)/(double)(nloaded)));
+						ngtpu/MILLION, ngtpu, pcapfilter_desc.c_str(), (double)(100.0*(double)(ngtpu)/(double)(nloaded)));
 
 	if (pcap_dumper)
 	{
@@ -545,7 +546,7 @@ static bool process_file(const std::string& infile, const std::string& outfile, 
 		fprintf(stderr, "Cannot open file: %s\n", pcap_errbuf);
 		return false;
 	}
-	printf_verbose("Analyzing PCAP file '%s'...\n", infile);
+	printf_verbose("Analyzing PCAP file '%s'...\n", infile.c_str());
 	if (st.st_size)
 		printf_verbose("The PCAP file has size %.2fGiB = %luMiB.\n", (double)st.st_size/(double)GB, st.st_size/MB);
 
@@ -605,7 +606,7 @@ static bool process_file(const std::string& infile, const std::string& outfile, 
 				return false;
 			}
 
-			printf_verbose("Analyzing PCAP file '%s'...\n", infile);
+			printf_verbose("Analyzing PCAP file '%s'...\n", infile.c_str());
 			if (st.st_size)
 				printf_verbose("The PCAP file has size %.2fGiB = %luMiB.\n", (double)st.st_size/(double)GB, st.st_size/MB);
 

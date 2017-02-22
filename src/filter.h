@@ -8,6 +8,8 @@
 #include "large-pcap-analyzer.h"
 #include "parse.h"
 
+#include <string>
+
 
 //------------------------------------------------------------------------------
 // Constants
