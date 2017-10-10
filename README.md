@@ -8,10 +8,23 @@ It is based over the well-known libpcap.
 
 Some features of this utility: 
 
-0. Extract packets matching a simple BPF filter (tcpdump syntax).
-0. Extract packets matching plain text.
-0. Computes the tcpreplay speed required to respect packet timestamps.
-0. Understands GTPu tunnelling and allows filtering via BPF filters (tcpdump syntax) the encapsulated (inner) GTPu frames
+1. Extract packets matching a simple BPF filter (tcpdump syntax).
+2. Extract packets matching plain text.
+3. Computes the tcpreplay speed required to respect packet timestamps.
+4. Understands GTPu tunnelling and allows filtering via BPF filters (tcpdump syntax) the encapsulated (inner) GTPu frames
+
+
+# How to install
+
+As for most Linux software, you can install the software just running:
+
+<tt>
+	$ wget https://github.com/f18m/large-pcap-analyzer/archive/3.4.2.tar.gz
+	$ tar xvzf 3.4.2.tar.gz
+	$ cd large-pcap-analyzer-3.4.2/
+	$ ./configure && make
+	$ sudo make install
+</tt>
 
 
 # Command line help
