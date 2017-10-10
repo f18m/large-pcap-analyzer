@@ -18,13 +18,13 @@ Some features of this utility:
 
 As for most Linux software, you can install the software just running:
 
-<tt>
+```
 	$ wget https://github.com/f18m/large-pcap-analyzer/archive/3.4.2.tar.gz
 	$ tar xvzf 3.4.2.tar.gz
 	$ cd large-pcap-analyzer-3.4.2/
 	$ ./configure && make
 	$ sudo make install
-</tt>
+```
 
 
 # Command line help
