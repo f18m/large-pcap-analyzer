@@ -48,7 +48,11 @@
 
 #define IPV6_LEN			(16)
 
-
+#if defined( __GNUC__ ) && __GNUC__ >= 7
+#define GCC_ALLOW_FALLTHROUGH			__attribute__ ((fallthrough))
+#else
+#define GCC_ALLOW_FALLTHROUGH			/* empty macro */
+#endif
 
 //------------------------------------------------------------------------------
 // Static Functions
@@ -80,21 +84,29 @@ uint64_t FastHash64(const char* buf, uint32_t len, uint64_t seed)
 	v = 0;
 
 	switch (len & 7) {
-	case 7: v ^= (uint64_t)pos2[6] << 48;
-	/* no break */
-	case 6: v ^= (uint64_t)pos2[5] << 40;
-	/* no break */
-	case 5: v ^= (uint64_t)pos2[4] << 32;
-	/* no break */
-	case 4: v ^= (uint64_t)pos2[3] << 24;
-	/* no break */
-	case 3: v ^= (uint64_t)pos2[2] << 16;
-	/* no break */
-	case 2: v ^= (uint64_t)pos2[1] << 8;
-	/* no break */
-	case 1: v ^= (uint64_t)pos2[0];
+	case 7:
+		v ^= (uint64_t)pos2[6] << 48;
+		GCC_ALLOW_FALLTHROUGH;
+	case 6:
+		v ^= (uint64_t)pos2[5] << 40;
+		GCC_ALLOW_FALLTHROUGH;
+	case 5:
+		v ^= (uint64_t)pos2[4] << 32;
+		GCC_ALLOW_FALLTHROUGH;
+	case 4:
+		v ^= (uint64_t)pos2[3] << 24;
+		GCC_ALLOW_FALLTHROUGH;
+	case 3:
+		v ^= (uint64_t)pos2[2] << 16;
+		GCC_ALLOW_FALLTHROUGH;
+	case 2:
+		v ^= (uint64_t)pos2[1] << 8;
+		GCC_ALLOW_FALLTHROUGH;
+	case 1:
+		v ^= (uint64_t)pos2[0];
 		h ^= fasthash64_mix(v);
 		h *= m;
+		break;
 	}
 
 	return fasthash64_mix(h);
