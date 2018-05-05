@@ -1,3 +1,5 @@
+[![Snap Status](https://build.snapcraft.io/badge/f18m/large-pcap-analyzer.svg)](https://build.snapcraft.io/user/f18m/large-pcap-analyzer)
+
 # Large PCAP file analyzer
 Large PCAP file analyzer is a command-line utility program that performs some simple operations
 on .PCAP files very quickly. This allows you to manipulate also very large PCAP files 
