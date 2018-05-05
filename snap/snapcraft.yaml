@@ -1,17 +1,20 @@
 
   name: large-pcap-analyzer
   version: 3.4.3
-  summary: Command-line utility program that performs some simple operations on .PCAP files very quickly.
+  summary: Command-line utility to process .PCAP files very quickly.
   description: |
    Large PCAP file analyzer is a command-line utility program that performs some simple operations 
    on .PCAP files very quickly. This allows you to manipulate also very large PCAP files that cannot 
    be easily handled with other software like Wireshark.
 
   grade: stable
-  confinement: devmode
+  confinement: strict
 
-  parts:
-    my-part:
-      # See 'snapcraft plugins'
-      plugin: nil
+  apps:
+    large-pcap-analyzer:
+      command: large_pcap_analyzer
   
+  parts:
+    large-pcap-analyzer:
+      plugin: autotools
+      source: https://github.com/f18m/large-pcap-analyzer/archive/3.4.3.tar.gz
