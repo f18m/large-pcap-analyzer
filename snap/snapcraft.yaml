@@ -8,13 +8,12 @@
 
     grade: stable
 
-    # NOTE: confinement 'strict' cannot be used for this utility since it needs read permissions
-    #       anywhere in the filesystem. 'classic' confinement is better.
-    confinement: classic
+    confinement: strict
 
     apps:
         large-pcap-analyzer:
             command: large_pcap_analyzer
+            plugs: [ home, removable-media ]
 
     parts:
         large-pcap-analyzer:
