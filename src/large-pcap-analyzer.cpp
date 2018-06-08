@@ -84,7 +84,7 @@ void printf_verbose(const char *fmtstr, ...)
 static void print_help()
 {
 	printf("%s [-h] [-v] [-t] [-p] [-a] [-w outfile.pcap] [-Y tcpdump_filter] [-G gtpu_tcpdump_filter] [-C conn_filter] [-S string] [-T] somefile.pcap ...\n", PACKAGE_NAME);
-	printf("by Francesco Montorsi, (c) 2014-2017\n");
+	printf("by Francesco Montorsi, (c) 2014-2018\n");
 	printf("version %s\n\n", PACKAGE_VERSION);
 	printf("Miscellaneous options:\n");
 	printf(" -h                       this help\n");
@@ -94,10 +94,10 @@ static void print_help()
 	printf(" -a                       open output file in APPEND mode instead of TRUNCATE\n");
 	printf(" -w <outfile.pcap>        where to save the PCAP containing the results of filtering\n");
 	printf("Filtering options (to select packets to save in outfile.pcap):\n");
-	printf(" -Y <tcpdump_filter>      the PCAP filter to apply on whole loaded packets (thus will apply on outer IP frames)\n");
-	printf(" -G <gtpu_tcpdump_filter> the PCAP filter to apply on inner/encapsulated GTPu frames (if any)\n");
+	printf(" -Y <tcpdump_filter>      the PCAP filter to apply on packets (will be applied on outer IP frames for GTPu pkts)\n");
+	printf(" -G <gtpu_tcpdump_filter> the PCAP filter to apply on inner/encapsulated GTPu frames (or outer IP frames for non-GTPu pkts)\n");
 	printf(" -C <conn_filter>         4-tuple identifying a connection to filter; syntax is 'IP1:port1 IP2:port2'\n");
-	printf(" -S <search-string>       a string filter to search on whole loaded packets\n");
+	printf(" -S <search-string>       a string filter that will be searched inside loaded packets\n");
 	printf(" -T <syn|full3way|full3way-data>\n");
 	printf("                          filter for entire TCP connections having \n");
 	printf("                            -T syn: at least 1 SYN packet\n");

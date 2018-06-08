@@ -1,8 +1,5 @@
-#ifndef LPA_H_
-#define LPA_H_
-
 /*
- * large-pcap-analyzer
+ * large-pcap-analyzer.h
  *
  * Author: Francesco Montorsi
  * Website: https://github.com/f18m/large-pcap-analyzer
@@ -37,6 +34,8 @@
 
  */
 
+#ifndef LPA_H_
+#define LPA_H_
 
 //------------------------------------------------------------------------------
 // Includes
