@@ -11,12 +11,12 @@
     confinement: strict
 
     apps:
-        large-pcap-analyzer:
+        large_pcap_analyzer:
             command: large_pcap_analyzer
             plugs: [ home, removable-media ]
 
     parts:
-        large-pcap-analyzer:
+        large_pcap_analyzer:
             plugin: autotools
             source: https://github.com/f18m/large-pcap-analyzer/archive/3.4.3.tar.gz
             build-packages:
