@@ -106,7 +106,7 @@ bool PacketProcessor::process_packet(const Packet& pktIn, Packet& pktOut, unsign
 				//return false; // cannot process
 
 			double secInterPktGap = m_duration_secs/m_num_input_pkts;
-			double thisPktTs = m_first_pkt_ts_sec + secInterPktGap*pktIdx;
+			double thisPktTs = m_first_pkt_ts_sec + secInterPktGap*(pktIdx+1);
 
 			pktOut.copy(pktIn.header(), pktIn.data());
 			pktOut.set_timestamp_from_seconds(thisPktTs);

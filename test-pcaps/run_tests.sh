@@ -1,15 +1,34 @@
 #!/bin/bash
+
 ####################################################################
 ## Simple testing of large_pcap_analyzer
 ####################################################################
 
+# be robust against typos:
+set -euo pipefail
+
+# test the locally-build LPA
 lpa_binary=../large_pcap_analyzer
+
+
 
 function test_timing()
 {
-	echo "Testing -t option..."
-	$lpa_binary -t timing-test.pcap | grep -q "0.50pps"
-	if [ $? -ne 0 ]; then echo "Failed test of timing analysis (-t option)" ; exit 1 ; fi
+	echo "Testing -t,--timing option..."
+	
+	output[1]="$($lpa_binary -t timing-test.pcap)"
+	output[2]="$($lpa_binary --timing timing-test.pcap)"
+	
+	for testnum in $(seq 1 2); do
+		
+		echo "${output[testnum]}" | grep -q "0.50pps"
+		if [ $? -ne 0 ]; then echo "Failed test of timing analysis (-t option)" ; exit 1 ; fi
+	
+		echo "${output[testnum]}" | grep -q "60.00sec"
+		if [ $? -ne 0 ]; then echo "Failed test of timing analysis (-t option)" ; exit 1 ; fi
+		
+		echo "  ... testcase #$testnum passed."
+	done
 }
 
 function test_tcpdump_filter()
@@ -85,7 +104,7 @@ function test_gtpu_filter()
 
 function test_extract_conn_filter()
 {
-	echo "Testing -C option... comparing large_pcap_analyzer and tshark"
+	echo "Testing -G option... comparing large_pcap_analyzer and tshark"
 	
 	# test extraction of a specific flow
 	test_file[1]=ipv4_gtpu_https.pcap
@@ -94,20 +113,29 @@ function test_extract_conn_filter()
 	tshark_dissect_opt[1]=""
 				
 	rm /tmp/filter*
-	for testnum in $(seq 1 1); do
-		$lpa_binary -w /tmp/filter${testnum}-lpa.pcap -G "${pcap_filter[testnum]}" ${test_file[testnum]} >/dev/null
-		if [ $? -ne 0 ]; then echo "Failed test of PCAP filter (-G option)" ; exit 1 ; fi
+	for testopt in $(seq 1 2); do
+	
+		local option="-G"
+		if (( testopt == 2 )); then
+			# test long option as well
+			option="--inner-filter"
+		fi
 		
-		tshark -F pcap -w /tmp/filter${testnum}-tshark.pcap -r ${test_file[testnum]}  ${tshark_dissect_opt[testnum]}  "${tshark_filter[testnum]}" >/dev/null 2>&1
-		if [ $? -ne 0 ]; then echo "Failed test of PCAP filter (-G option)" ; exit 1 ; fi
-		
-		cmp --silent /tmp/filter${testnum}-lpa.pcap /tmp/filter${testnum}-tshark.pcap
-		if [ $? -ne 0 ]; then echo "large_pcap_analyzer and tshark produced different output (-G option); check /tmp/filter${testnum}-lpa.pcap and /tmp/filter${testnum}-tshark.pcap" ; exit 1 ; fi
-		
-		echo "  ... testcase #$testnum passed."
+		for testnum in $(seq 1 1); do
+			$lpa_binary -w /tmp/filter${testnum}-lpa.pcap $option "${pcap_filter[testnum]}" ${test_file[testnum]} >/dev/null
+			if [ $? -ne 0 ]; then echo "Failed test of PCAP filter (-G option)" ; exit 1 ; fi
+			
+			tshark -F pcap -w /tmp/filter${testnum}-tshark.pcap -r ${test_file[testnum]}  ${tshark_dissect_opt[testnum]}  "${tshark_filter[testnum]}" >/dev/null 2>&1
+			if [ $? -ne 0 ]; then echo "Failed test of PCAP filter (-G option)" ; exit 1 ; fi
+			
+			cmp --silent /tmp/filter${testnum}-lpa.pcap /tmp/filter${testnum}-tshark.pcap
+			if [ $? -ne 0 ]; then echo "large_pcap_analyzer and tshark produced different output (-G option); check /tmp/filter${testnum}-lpa.pcap and /tmp/filter${testnum}-tshark.pcap" ; exit 1 ; fi
+			
+			echo "  ... testcase #$testnum with $option passed."
+		done
 	done
 }
-	
+
 function test_tcp_filter()
 {
 	echo "Testing -T option... comparing large_pcap_analyzer and tshark"
@@ -131,24 +159,69 @@ function test_tcp_filter()
 	tshark_filter[4]="tcp.stream eq 1000"			# this is just a non-existing TCP flow: the output must be empty
 		
 	rm /tmp/filter*
-	for testnum in $(seq 1 4); do
-		$lpa_binary -w /tmp/filter${testnum}-lpa.pcap -T "${tcp_filter[testnum]}" ${test_file[testnum]} >/dev/null
-		if [ $? -ne 0 ]; then echo "Failed test of TCP filter (-T option)" ; exit 1 ; fi
+	for testopt in $(seq 1 2); do
+	
+		local option="-T"
+		if (( testopt == 2 )); then
+			# test long option as well
+			option="--tcp-filter"
+		fi
+		for testnum in $(seq 1 4); do
+			$lpa_binary -w /tmp/filter${testnum}-lpa.pcap $option "${tcp_filter[testnum]}" ${test_file[testnum]} >/dev/null
+			if [ $? -ne 0 ]; then echo "Failed test of TCP filter (-T option)" ; exit 1 ; fi
+			
+			tshark -F pcap -w /tmp/filter${testnum}-tshark.pcap -r ${test_file[testnum]}   "${tshark_filter[testnum]}" >/dev/null 2>&1
+			if [ $? -ne 0 ]; then echo "Failed test of TCP filter (-T option)" ; exit 1 ; fi
+			
+			cmp --silent /tmp/filter${testnum}-lpa.pcap /tmp/filter${testnum}-tshark.pcap
+			if [ $? -ne 0 ]; then echo "large_pcap_analyzer and tshark produced different output (-G option); check /tmp/filter${testnum}-lpa.pcap and /tmp/filter${testnum}-tshark.pcap" ; exit 1 ; fi
+			
+			echo "  ... testcase #$testnum with $option passed."
+		done
+	done
+}
+
+function test_set_duration()
+{
+	echo "Testing --set-duration option..."
+	
+	# original duration is 60sec
+	test_file[1]="timing-test.pcap"
+	test_duration[1]="13"
+	expected_timing_output[1]="13.00sec"
+	
+	# original duration is 18.3sec
+	test_file[2]="ipv4_ftp.pcap"
+	test_duration[2]="100.020"
+	expected_timing_output[2]="100.02sec"
+	
+	# original duration is 18.3sec
+	test_file[3]="ipv4_ftp.pcap"
+	test_duration[3]="10:09:08.7"			# test different syntax
+	expected_timing_output[3]="36548.70sec"
+	
+	# in this test we assume that --timing option of LPA works correctly...
+	
+	for testnum in $(seq 1 3); do
+		$lpa_binary -w /tmp/filter${testnum}-lpa.pcap --set-duration "${test_duration[testnum]}" ${test_file[testnum]} >/dev/null
+		if [ $? -ne 0 ]; then echo "Failed test of --set-duration option" ; exit 1 ; fi
 		
-		tshark -F pcap -w /tmp/filter${testnum}-tshark.pcap -r ${test_file[testnum]}   "${tshark_filter[testnum]}" >/dev/null 2>&1
-		if [ $? -ne 0 ]; then echo "Failed test of TCP filter (-T option)" ; exit 1 ; fi
-		
-		cmp --silent /tmp/filter${testnum}-lpa.pcap /tmp/filter${testnum}-tshark.pcap
-		if [ $? -ne 0 ]; then echo "large_pcap_analyzer and tshark produced different output (-G option); check /tmp/filter${testnum}-lpa.pcap and /tmp/filter${testnum}-tshark.pcap" ; exit 1 ; fi
+		# now validate against the --timing option
+		local output="$($lpa_binary --timing /tmp/filter${testnum}-lpa.pcap)"
+	
+		echo "$output" | grep -q "${expected_timing_output[testnum]}"
+		if [ $? -ne 0 ]; then echo "Failed test of --set-duration option" ; exit 1 ; fi
 		
 		echo "  ... testcase #$testnum passed."
 	done
 }
-
 
 test_timing
 test_tcpdump_filter
 test_gtpu_filter
 test_extract_conn_filter
 test_tcp_filter
+test_set_duration
 echo "All tests passed successfully"
+
+
