@@ -11,7 +11,8 @@ Some features of this utility:
 1. Extract packets matching a simple BPF filter (tcpdump syntax).
 2. Extract packets matching plain text.
 3. Computes the tcpreplay speed required to respect packet timestamps.
-4. Understands GTPu tunnelling and allows filtering via BPF filters (tcpdump syntax) the encapsulated (inner) GTPu frames
+4. Understands GTPu tunnelling and allows filtering via BPF filters (tcpdump syntax) the encapsulated (inner) GTPu frames.
+5. Change PCAP duration, changing the timestamp inside each packet.
 
 
 # How to install
@@ -31,8 +32,7 @@ Or you can use one of the following installation options:
 | Build Status  | Applies to |
 |:-------------:|:----------:|
 | [![RPM Repositories](https://copr.fedorainfracloud.org/coprs/f18m/large-pcap-analyzer/package/large-pcap-analyzer/status_image/last_build.png)](https://copr.fedorainfracloud.org/coprs/f18m/large-pcap-analyzer/) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; | CentOS 7,  Fedora 27,  Fedora 28, openSUSE Leap 15.0 and openSUSE Tumbleweed. Click on the badge to reach the page with the RPM repository informations. |
-| [![Snap Status](https://build.snapcraft.io/badge/f18m/large-pcap-analyzer.svg)](https://build.snapcraft.io/user/f18m/large-pcap-analyzer) | Arch Linux, Debian, Fedora, Gentoo, Linux Mint, openSUSE, Raspbian, Ubuntu. If you have [snapd](https://docs.snapcraft.io/core/install) installed, just run 
-```snap install hello``` |
+| [![Snap Status](https://build.snapcraft.io/badge/f18m/large-pcap-analyzer.svg)](https://build.snapcraft.io/user/f18m/large-pcap-analyzer) | Arch Linux, Debian, Fedora, Gentoo, Linux Mint, openSUSE, Raspbian, Ubuntu. If you have [snapd](https://docs.snapcraft.io/core/install) installed, just run ```snap install large-pcap-analyzer``` |
 
 
 # Command line help
@@ -200,3 +200,30 @@ In this example we are interested in selecting packets of TCP connections that h
 
 Note that to load, search and extract packets from a 5.6GB PCAP only 4.5secs were required (on a 3GHz Intel Xeon CPU).
 This translates to a processing throughput of about 1GB/sec (in this mode).
+
+
+# Example run 6: set PCAP duration
+
+In this example a PCAP that would take 8 minutes to be replayed (without top speed option) will be
+modified to take just 1.2 seconds to replay:
+
+<tt>
+    $ large_pcap_analyzer --timing test-pcaps/ipv4_gtpu_https.pcap 
+	0M packets (18201 packets) were loaded from PCAP.
+	Last packet has a timestamp offset = 473.48sec = 7.89min = 0.13hours
+	Tcpreplay should replay this PCAP at an average of 0.27Mbps / 38.44pps to respect PCAP timings.
+	
+	$ large_pcap_analyzer --set-duration 1.2 --write /tmp/test.pcap test-pcaps/ipv4_gtpu_https.pcap 
+	PCAP duration will be set to: 1.200000 secs
+	Successfully opened output PCAP '/tmp/test.pcap'
+	Packet processing operations require 2 passes: performing first pass
+	0M packets (18201 packets) were loaded from PCAP.
+	Packet processing operations require 2 passes: performing second pass
+	0M packets (18201 packets) were loaded from PCAP.
+	0M packets (18201 packets) were processed and saved into output PCAP.
+	
+	$ large_pcap_analyzer --timing /tmp/test.pcap 
+	0M packets (18201 packets) were loaded from PCAP.
+	Last packet has a timestamp offset = 1.20sec = 0.02min = 0.00hours
+	Tcpreplay should replay this PCAP at an average of 105.00Mbps / 15167.50pps to respect PCAP timings.
+</tt>
