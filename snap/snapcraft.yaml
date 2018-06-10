@@ -1,5 +1,5 @@
     name: large-pcap-analyzer
-    version: 3.4.3
+    version: 3.4.4
     summary: Command-line utility to process .PCAP files very quickly.
     description: |
         Large PCAP file analyzer is a command-line utility program that performs some simple operations
@@ -18,7 +18,7 @@
     parts:
         large_pcap_analyzer:
             plugin: autotools
-            source: https://github.com/f18m/large-pcap-analyzer/archive/3.4.3.tar.gz
+            source: https://github.com/f18m/large-pcap-analyzer/archive/3.4.4.tar.gz
             build-packages:
                 - g++
                 - make
