@@ -108,6 +108,19 @@
 
 
 //------------------------------------------------------------------------------
+// Time macros
+//------------------------------------------------------------------------------
+
+#define SEC_TO_NSEC(x)			(x*(1E9))
+#define SEC_TO_USEC(x)			(x*(1E6))
+
+#define NSEC_TO_SEC(x)			(x/(1E9))
+#define NSEC_TO_USEC(x)			(x/(1E6))
+
+#define USEC_TO_SEC(x)			(x/(1E6))
+
+
+//------------------------------------------------------------------------------
 // Types
 //------------------------------------------------------------------------------
 
@@ -134,13 +147,75 @@ struct gtp1_header {    /* According to 3GPP TS 29.060. */
 class Packet
 {
 public:
-	Packet(struct pcap_pkthdr* hdr = NULL, const u_char* data = NULL) { pcap_header=hdr; pcap_packet=data; }
+	Packet(struct pcap_pkthdr* hdr = NULL, const u_char* data = NULL)
+		{ m_pcap_header=hdr; m_pcap_packet=data; m_pcaplib_owns_data=true; }
 
-	size_t len() const				{ if (pcap_header) return pcap_header->caplen; else return 0; }
-	const u_char* data() const		{ return pcap_packet; }
+	~Packet() { destroy(); }
 
-	struct pcap_pkthdr*			pcap_header;
-	const u_char*				pcap_packet;
+	void destroy()
+	{
+		if (m_pcaplib_owns_data)
+		{
+			// libpcap owns this packet, just reset pointers and leave
+			// memory deallocation to libpcap
+			m_pcap_header = NULL;
+			m_pcap_packet = NULL;
+		}
+		else
+		{
+			if (m_pcap_header)
+				free(m_pcap_header);
+
+			if (m_pcap_packet)
+				free(const_cast<u_char*>(m_pcap_packet));
+
+			m_pcap_header = NULL;
+			m_pcap_packet = NULL;
+		}
+	}
+
+	void copy(const struct pcap_pkthdr* hdr, const u_char* data)
+	{
+		destroy();		// just in case
+
+		m_pcaplib_owns_data = false;
+		m_pcap_header = (struct pcap_pkthdr*)malloc(sizeof(struct pcap_pkthdr)+1);
+		m_pcap_packet = (u_char*)malloc(hdr->caplen+1);
+
+		memcpy(m_pcap_header, hdr, sizeof(struct pcap_pkthdr));
+		memcpy(const_cast<u_char*>(m_pcap_packet), data, hdr->caplen);
+	}
+
+	size_t len() const				{ if (m_pcap_header) return m_pcap_header->caplen; else return 0; }
+
+	const struct pcap_pkthdr* header() const		{ return m_pcap_header; }
+	const u_char* data() const						{ return m_pcap_packet; }
+
+	static double pcap_timestamp_to_seconds(struct timeval* ts)
+	{
+		return (double)ts->tv_sec +
+							USEC_TO_SEC((double)ts->tv_usec);
+	}
+	static double pcap_timestamp_to_seconds(struct pcap_pkthdr* pcap_header)
+	{
+		return pcap_timestamp_to_seconds(&pcap_header->ts);
+	}
+	double pcap_timestamp_to_seconds() const
+	{
+		return pcap_timestamp_to_seconds(&m_pcap_header->ts);
+	}
+
+	void set_timestamp_from_seconds(double ts)
+	{
+		m_pcap_header->ts.tv_sec = (uint64_t)ts;
+		m_pcap_header->ts.tv_usec = SEC_TO_USEC(ts) - SEC_TO_USEC(m_pcap_header->ts.tv_sec);
+
+	}
+
+private:
+	struct pcap_pkthdr*			m_pcap_header;
+	const u_char*				m_pcap_packet;
+	bool						m_pcaplib_owns_data;
 };
 
 

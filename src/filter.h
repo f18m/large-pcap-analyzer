@@ -73,8 +73,21 @@ public:
 			pcap_freecode(&gtpu_filter);
 	}
 
+	bool prepare_filter(const std::string& pcap_filter_str,
+			const std::string& gtpu_filter_str, const std::string& str_filter,
+			TcpFilterMode valid_tcp_filter);
+
+
+	static bool convert_extract_filter(const std::string& extract_filter, std::string& output_pcap_filter);
+
+
 	bool is_some_filter_active() const
-	{ return (capture_filter_set || gtpu_filter_set || !string_filter.empty() || valid_tcp_filter_mode != TCP_FILTER_NOT_ACTIVE); }
+		{ return (capture_filter_set || gtpu_filter_set || !string_filter.empty() || valid_tcp_filter_mode != TCP_FILTER_NOT_ACTIVE); }
+
+	bool needs_2passes() const
+		{ return valid_tcp_filter_mode != TCP_FILTER_NOT_ACTIVE; }
+
+	bool must_be_saved(const Packet& pkt, bool* is_gtpu) const;
 
 
 public:
@@ -90,11 +103,5 @@ public:
 	flow_map_t 					valid_tcp_firstpass_flows;			// contains the result of the 1st pass
 };
 
-
-//------------------------------------------------------------------------------
-// Functions
-//------------------------------------------------------------------------------
-
-extern bool must_be_saved(const Packet& pkt, const FilterCriteria* filter, bool* is_gtpu);
 
 #endif	// FILTER_H_

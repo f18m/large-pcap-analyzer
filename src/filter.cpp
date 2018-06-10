@@ -38,7 +38,13 @@
 #include <linux/udp.h>
 #include <linux/tcp.h>
 
-
+#include <getopt.h>
+#include <unistd.h>
+#include <signal.h>
+#include <sstream>
+#include <vector>
+#include <algorithm>
+#include <string>
 
 //------------------------------------------------------------------------------
 // Globals
@@ -48,8 +54,99 @@ u_char g_buffer[MAX_SNAPLEN];
 
 
 //------------------------------------------------------------------------------
+// FilterCriteria
+//------------------------------------------------------------------------------
+
+bool FilterCriteria::prepare_filter(const std::string& pcap_filter_str,
+		const std::string& gtpu_filter_str, const std::string& str_filter,
+		TcpFilterMode valid_tcp_filter)
+{
+	// PCAP filter
+	if (!pcap_filter_str.empty()) {
+		if (pcap_compile_nopcap(MAX_SNAPLEN, DLT_EN10MB, &capture_filter,
+				pcap_filter_str.c_str(), 0 /* optimize */, PCAP_NETMASK_UNKNOWN)
+				!= 0) {
+			fprintf(stderr, "Cannot parse PCAP filter: %s\n",
+					pcap_filter_str.c_str());
+			return false;
+		}
+
+		capture_filter_set = true;
+		printf("Successfully compiled PCAP filter: %s\n",
+				pcap_filter_str.c_str());
+	}
+	// GTPu PCAP filter
+	if (!gtpu_filter_str.empty()) {
+
+		if (pcap_compile_nopcap(MAX_SNAPLEN, DLT_EN10MB, &gtpu_filter,
+				gtpu_filter_str.c_str(), 0 /* optimize */, PCAP_NETMASK_UNKNOWN)
+				!= 0) {
+			fprintf(stderr, "Cannot parse GTPu filter: %s\n",
+					gtpu_filter_str.c_str());
+			return false;
+		}
+
+		gtpu_filter_set = true;
+		printf("Successfully compiled GTPu PCAP filter: %s\n",
+				gtpu_filter_str.c_str());
+	}
+	// other filters:
+	string_filter = str_filter;
+	valid_tcp_filter_mode = valid_tcp_filter;
+	return true;
+}
+
+//------------------------------------------------------------------------------
 // Static Functions
 //------------------------------------------------------------------------------
+
+/* static */
+bool FilterCriteria::convert_extract_filter(const std::string& extract_filter, std::string& output_pcap_filter)
+{
+	std::istringstream iss(extract_filter);
+	std::string token;
+	std::vector < std::string > tokens;
+	while (std::getline(iss, token, ' '))
+		tokens.push_back(token);
+	std::vector < std::string > ip_port;
+	switch (tokens.size()) {
+	case 2:
+		for (int i = 0; i < 2; i++) {
+			// assume the 2 tokens are IP:port strings
+			std::istringstream iss(tokens[i]);
+			std::string token;
+			while (std::getline(iss, token, ':'))
+				ip_port.push_back(token);
+		}
+		if (ip_port.size() != 4) {
+			fprintf(stderr,
+					"Expected an IP address and a port number separated by a colon; found: %s and %s invalid IP:port strings.\n",
+					tokens[0].c_str(), tokens[1].c_str());
+			return false;
+		}
+		break;
+	case 4:
+		// ok as is
+		ip_port = tokens;
+		break;
+	default:
+		fprintf(stderr,
+				"Expected space-separated IP:port strings instead of %s\n",
+				extract_filter.c_str());
+		return false;
+	}
+	// very basic IPv4 validation check; todo: ipv6
+	for (int i = 0; i < 4; i += 2) {
+		if (std::count(ip_port[i].begin(), ip_port[i].end(), '.') != 3) {
+			fprintf(stderr, "Expected a valid IPv4 address, found instead %s\n",
+					ip_port[i].c_str());
+			return false;
+		}
+	}
+	output_pcap_filter = "host " + ip_port[0] + " && port " + ip_port[1]
+			+ " && host " + ip_port[2] + " && port " + ip_port[3];
+	return true;
+}
 
 static bool apply_filter_on_inner_ip_frame(const Packet& pkt,
 											unsigned int inner_ip_offset, unsigned int ipver, unsigned int len_after_inner_ip_start,
@@ -85,7 +182,7 @@ static bool apply_filter_on_inner_ip_frame(const Packet& pkt,
 
 	// create also a fake PCAP header
 	struct pcap_pkthdr fakehdr;
-	memcpy(&fakehdr.ts, &pkt.pcap_header->ts, sizeof(pkt.pcap_header->ts));
+	memcpy(&fakehdr.ts, &pkt.header()->ts, sizeof(pkt.header()->ts));
 	fakehdr.caplen = fakehdr.len = sizeof(struct ether_header) + len_after_inner_ip_start;
 
 	// pcap_offline_filter returns
@@ -105,18 +202,18 @@ static bool apply_filter_on_inner_ip_frame(const Packet& pkt,
 // Global Functions
 //------------------------------------------------------------------------------
 
-bool must_be_saved(const Packet& pkt, const FilterCriteria* filter, bool* is_gtpu)	// will do a logical OR of all filters set
+bool FilterCriteria::must_be_saved(const Packet& pkt, bool* is_gtpu) const	// will do a logical OR of all filters set
 {
 	// string-search filter:
 
-	if (UNLIKELY( !filter->string_filter.empty() ))
+	if (UNLIKELY( !string_filter.empty() ))
 	{
 		unsigned int len = MIN(pkt.len(), MAX_SNAPLEN);
 
 		memcpy(g_buffer, pkt.data(), len);
 		g_buffer[len] = '\0';
 
-		void* result = memmem(g_buffer, len, filter->string_filter.c_str(), filter->string_filter.size());
+		void* result = memmem(g_buffer, len, string_filter.c_str(), string_filter.size());
 		if (result != NULL)
 			// string was found inside the packet!
 			return true;   // useless to proceed!
@@ -125,9 +222,9 @@ bool must_be_saved(const Packet& pkt, const FilterCriteria* filter, bool* is_gtp
 
 	// PCAP capture filter:
 
-	if (UNLIKELY( filter->capture_filter_set ))
+	if (UNLIKELY( capture_filter_set ))
 	{
-		int ret = pcap_offline_filter(&filter->capture_filter, pkt.pcap_header, pkt.pcap_packet);
+		int ret = pcap_offline_filter(&capture_filter, pkt.header(), pkt.data());
 		if (ret != 0)
 		{
 			// pcap_offline_filter returns
@@ -140,7 +237,7 @@ bool must_be_saved(const Packet& pkt, const FilterCriteria* filter, bool* is_gtp
 
 	// GTPu capture filter:
 
-	if (UNLIKELY( filter->gtpu_filter_set ))
+	if (UNLIKELY( gtpu_filter_set ))
 	{
 		// is this a GTPu packet?
 		int offset = 0, ipver = 0, len_after_inner_ip_start = 0;
@@ -152,7 +249,7 @@ bool must_be_saved(const Packet& pkt, const FilterCriteria* filter, bool* is_gtp
 			if (offset > 0 && len_after_inner_ip_start > 0)
 			{
 				// run the filter only on inner/encapsulated frame:
-				if (apply_filter_on_inner_ip_frame(pkt, offset, ipver, len_after_inner_ip_start, &filter->gtpu_filter))
+				if (apply_filter_on_inner_ip_frame(pkt, offset, ipver, len_after_inner_ip_start, &gtpu_filter))
 					return true;   // useless to proceed!
 			}
 		}
@@ -161,15 +258,15 @@ bool must_be_saved(const Packet& pkt, const FilterCriteria* filter, bool* is_gtp
 
 	// valid-TCP-stream filter:
 
-	if (UNLIKELY( filter->valid_tcp_filter_mode != TCP_FILTER_NOT_ACTIVE ))
+	if (UNLIKELY( valid_tcp_filter_mode != TCP_FILTER_NOT_ACTIVE ))
 	{
 		flow_hash_t hash = compute_flow_hash(pkt);
 		if (hash != INVALID_FLOW_HASH)
 		{
-			flow_map_t::const_iterator entry = filter->valid_tcp_firstpass_flows.find(hash);
-			if (entry != filter->valid_tcp_firstpass_flows.end())
+			flow_map_t::const_iterator entry = valid_tcp_firstpass_flows.find(hash);
+			if (entry != valid_tcp_firstpass_flows.end())
 			{
-				switch (filter->valid_tcp_filter_mode)
+				switch (valid_tcp_filter_mode)
 				{
 				case TCP_FILTER_CONN_HAVING_SYN:
 					if (entry->second >= FLOW_FOUND_SYN_AND_SYNACK)
