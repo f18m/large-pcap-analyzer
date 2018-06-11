@@ -11,12 +11,14 @@
     confinement: strict
 
     apps:
-        large_pcap_analyzer:
+        # NOTE: even though the software binary is using underscores (large_pcap_analyzer), the snapcraft
+        #       tool REQUIRES the use of dashes in place of underscores
+        large-pcap-analyzer:
             command: large_pcap_analyzer
             plugs: [ home, removable-media ]
 
     parts:
-        large_pcap_analyzer:
+        large-pcap-analyzer:
             plugin: autotools
             source: https://github.com/f18m/large-pcap-analyzer/archive/3.5.0.tar.gz
             build-packages:
