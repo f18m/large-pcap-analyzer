@@ -50,6 +50,7 @@ public:
 		m_change_duration = false;
 		m_duration_secs = 0;
 		m_first_pkt_ts_sec = 0;
+		m_num_input_pkts = 0;
 	}
 
 	~PacketProcessor()
@@ -62,7 +63,7 @@ public:
 	bool needs_2passes() const
 		{ return m_change_duration; }
 
-	void set_num_packets(uint64_t npkts)
+	void set_num_packets(unsigned long npkts)
 		{ m_num_input_pkts = npkts; }
 
 	// returns true if the output packet has been filled or false if no action
@@ -76,7 +77,7 @@ private:
 
 	// status:
 	double m_first_pkt_ts_sec;
-	uint64_t m_num_input_pkts;
+	unsigned long m_num_input_pkts;
 };
 
 

@@ -574,7 +574,7 @@ static bool process_file(const std::string& infile, const std::string& outfile, 
 
 		// first pass
 		printf("Packet processing operations require 2 passes: performing first pass\n");
-		uint64_t nFilteredPkts = 0;
+		unsigned long nFilteredPkts = 0;
 		if (!process_pcap_handle(pcap_handle_in,
 								filterToUse, NULL /* no packet processing this time */,
 								NULL, NULL, &nFilteredPkts))

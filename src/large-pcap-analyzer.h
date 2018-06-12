@@ -207,7 +207,7 @@ public:
 
 	void set_timestamp_from_seconds(double ts)
 	{
-		m_pcap_header->ts.tv_sec = (uint64_t)ts;
+		m_pcap_header->ts.tv_sec = (time_t)ts;
 		m_pcap_header->ts.tv_usec = SEC_TO_USEC(ts) - SEC_TO_USEC(m_pcap_header->ts.tv_sec);
 
 	}
