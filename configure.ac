@@ -1,7 +1,7 @@
 # Process this file with autoreconf to produce a configure script.
 
 AC_PREREQ([2.69])
-AC_INIT([large-pcap-analyzer], [3.5.0], [francesco.montorsi@gmail.com])
+AC_INIT([large-pcap-analyzer], [3.5.1], [francesco.montorsi@gmail.com])
 AC_CONFIG_SRCDIR([src])
 AC_CONFIG_HEADERS([src/config.h])
 AC_CONFIG_MACRO_DIR([m4])
