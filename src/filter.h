@@ -84,13 +84,16 @@ public:
 	bool is_some_filter_active() const
 		{ return (capture_filter_set || gtpu_filter_set || !string_filter.empty() || valid_tcp_filter_mode != TCP_FILTER_NOT_ACTIVE); }
 
+	bool is_capture_filter_set() const { return capture_filter_set; }
+	bool is_gtpu_filter_set() const { return gtpu_filter_set; }
+
 	bool needs_2passes() const
 		{ return valid_tcp_filter_mode != TCP_FILTER_NOT_ACTIVE; }
 
 	bool must_be_saved(const Packet& pkt, bool* is_gtpu) const;
 
 
-public:
+private:
 	struct bpf_program 			capture_filter;
 	bool 						capture_filter_set;
 
@@ -100,6 +103,8 @@ public:
 	std::string					string_filter;
 
 	TcpFilterMode				valid_tcp_filter_mode;
+
+public:
 	flow_map_t 					valid_tcp_firstpass_flows;			// contains the result of the 1st pass
 };
 

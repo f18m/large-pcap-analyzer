@@ -328,7 +328,7 @@ static bool process_pcap_handle(pcap_t* pcap_handle_in,
 	struct pcap_pkthdr first_pcap_header, last_pcap_header;
 
 	std::string pcapfilter_desc = "";
-	if (filter && filter->capture_filter_set)
+	if (filter && filter->is_capture_filter_set())
 		pcapfilter_desc = " (matching PCAP filter)";
 
 	gettimeofday(&start, NULL);
@@ -398,7 +398,7 @@ static bool process_pcap_handle(pcap_t* pcap_handle_in,
 	printf_verbose("Processing took %i seconds.\n", (int) (stop.tv_sec - start.tv_sec));
 	printf("%luM packets (%lu packets) were loaded from PCAP%s.\n", nloaded/MILLION, nloaded, pcapfilter_desc.c_str());
 
-	if (filter && filter->gtpu_filter_set)
+	if (filter && filter->is_gtpu_filter_set())
 		// in this case, the GTPu parser was run and we have a stat about how many packets are GTPu
 		printf_verbose("%luM packets (%lu packets) loaded from PCAP%s are GTPu packets (%.1f%%).\n",
 						ngtpu/MILLION, ngtpu, pcapfilter_desc.c_str(), (double)(100.0*(double)(ngtpu)/(double)(nloaded)));
