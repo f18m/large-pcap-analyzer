@@ -66,14 +66,13 @@ bool FilterCriteria::prepare_filter(const std::string& pcap_filter_str,
 		if (pcap_compile_nopcap(MAX_SNAPLEN, DLT_EN10MB, &capture_filter,
 				pcap_filter_str.c_str(), 0 /* optimize */, PCAP_NETMASK_UNKNOWN)
 				!= 0) {
-			fprintf(stderr, "Cannot parse PCAP filter: %s\n",
+			printf_error( "Cannot parse PCAP filter: %s\n",
 					pcap_filter_str.c_str());
 			return false;
 		}
 
 		capture_filter_set = true;
-		printf("Successfully compiled PCAP filter: %s\n",
-				pcap_filter_str.c_str());
+		printf_verbose("Successfully compiled PCAP filter: %s\n", pcap_filter_str.c_str());
 	}
 	// GTPu PCAP filter
 	if (!gtpu_filter_str.empty()) {
@@ -81,14 +80,13 @@ bool FilterCriteria::prepare_filter(const std::string& pcap_filter_str,
 		if (pcap_compile_nopcap(MAX_SNAPLEN, DLT_EN10MB, &gtpu_filter,
 				gtpu_filter_str.c_str(), 0 /* optimize */, PCAP_NETMASK_UNKNOWN)
 				!= 0) {
-			fprintf(stderr, "Cannot parse GTPu filter: %s\n",
+			printf_error( "Cannot parse GTPu filter: %s\n",
 					gtpu_filter_str.c_str());
 			return false;
 		}
 
 		gtpu_filter_set = true;
-		printf("Successfully compiled GTPu PCAP filter: %s\n",
-				gtpu_filter_str.c_str());
+		printf_verbose("Successfully compiled GTPu PCAP filter: %s\n", gtpu_filter_str.c_str());
 	}
 	// other filters:
 	string_filter = str_filter;
@@ -119,7 +117,7 @@ bool FilterCriteria::convert_extract_filter(const std::string& extract_filter, s
 				ip_port.push_back(token);
 		}
 		if (ip_port.size() != 4) {
-			fprintf(stderr,
+			printf_error(
 					"Expected an IP address and a port number separated by a colon; found: %s and %s invalid IP:port strings.\n",
 					tokens[0].c_str(), tokens[1].c_str());
 			return false;
@@ -130,7 +128,7 @@ bool FilterCriteria::convert_extract_filter(const std::string& extract_filter, s
 		ip_port = tokens;
 		break;
 	default:
-		fprintf(stderr,
+		printf_error(
 				"Expected space-separated IP:port strings instead of %s\n",
 				extract_filter.c_str());
 		return false;
@@ -138,7 +136,7 @@ bool FilterCriteria::convert_extract_filter(const std::string& extract_filter, s
 	// very basic IPv4 validation check; todo: ipv6
 	for (int i = 0; i < 4; i += 2) {
 		if (std::count(ip_port[i].begin(), ip_port[i].end(), '.') != 3) {
-			fprintf(stderr, "Expected a valid IPv4 address, found instead %s\n",
+			printf_error( "Expected a valid IPv4 address, found instead %s\n",
 					ip_port[i].c_str());
 			return false;
 		}

@@ -224,5 +224,6 @@ private:
 //------------------------------------------------------------------------------
 
 extern void printf_verbose(const char *fmtstr, ...);
+extern void printf_error(const char *fmtstr, ...);
 
 #endif

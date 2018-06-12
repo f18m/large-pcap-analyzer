@@ -73,13 +73,12 @@ bool PacketProcessor::prepare_processor(const std::string& set_duration)
 			m_duration_secs = hh*3600 + mm*60 + ss;
 
 		} else {
-			fprintf(stderr, "Cannot parse PCAP duration to set: %s\n",
-					set_duration.c_str());
+			printf_error( "Cannot parse PCAP duration to set: %s\n", set_duration.c_str());
 			return false;
 		}
 
 		m_change_duration = true;
-		printf("PCAP duration will be set to: %f secs\n", m_duration_secs);
+		printf_verbose("PCAP duration will be set to: %f secs\n", m_duration_secs);
 	}
 	return true;
 }
@@ -96,7 +95,7 @@ bool PacketProcessor::process_packet(const Packet& pktIn, Packet& pktOut, unsign
 			assert(m_first_pkt_ts_sec == 0);
 			m_first_pkt_ts_sec = pktIn.pcap_timestamp_to_seconds();
 			if (m_first_pkt_ts_sec == 0)
-				printf("WARNING: invalid timestamp zero (Thursday, 1 January 1970 00:00:00) for the first packet. This is unusual.\n");
+				printf_error("WARNING: invalid timestamp zero (Thursday, 1 January 1970 00:00:00) for the first packet. This is unusual.\n");
 
 			return false; // no proc done
 		}

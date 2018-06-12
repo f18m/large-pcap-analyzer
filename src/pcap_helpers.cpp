@@ -53,7 +53,7 @@ pcap_dumper_t* pcap_dump_append( pcap_t* pcap,
         }
         else
         {
-            fprintf(stderr, "Cannot open file: %s\n", pcap_errbuf);
+            printf_error( "Cannot open file: %s\n", pcap_errbuf);
             return NULL;
         }
     }
@@ -69,7 +69,7 @@ pcap_dumper_t* pcap_dump_append( pcap_t* pcap,
     */
     if (pcap_datalink(pn) != pcap_datalink(pcap))
     {
-        fprintf(stderr, "linklayer protocols incompatible (%i/%i)",
+        printf_error( "linklayer protocols incompatible (%i/%i)",
                        pcap_datalink(pn), pcap_datalink(pcap));
         pcap_close(pn);
         return NULL;
@@ -77,7 +77,7 @@ pcap_dumper_t* pcap_dump_append( pcap_t* pcap,
 
     if (! (result = fopen(filename, "r+")))
     {
-        fprintf(stderr, "Error opening '%s' in r+ mode.\n", filename);
+        printf_error( "Error opening '%s' in r+ mode.\n", filename);
         goto error_return;
     }
 
@@ -87,7 +87,7 @@ pcap_dumper_t* pcap_dump_append( pcap_t* pcap,
     {
         //struct pcap_file_header filehdr;
 
-        fprintf(stderr, "snaplen needs updating from %d to %d.\n",
+        printf_error( "snaplen needs updating from %d to %d.\n",
                 pcap_snapshot(pn), pcap_snapshot(pcap));
 
 /*
@@ -105,7 +105,7 @@ pcap_dumper_t* pcap_dump_append( pcap_t* pcap,
 
     if (fseek(result, 0, SEEK_END) < 0)
     {
-        fprintf(stderr, "Error seeking to end of file.\n");
+        printf_error( "Error seeking to end of file.\n");
         goto error_return;
     }
 
