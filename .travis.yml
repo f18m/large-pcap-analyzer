@@ -9,4 +9,4 @@ addons:
     - libpcap-dev
     - diffutils
     - tcpdump
-    - wireshark-common
+    - tshark

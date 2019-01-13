@@ -5,7 +5,7 @@
 ####################################################################
 
 # be robust against typos:
-set -euo pipefail
+set -uo pipefail
 
 # test the locally-build LPA
 lpa_binary="../large_pcap_analyzer"
