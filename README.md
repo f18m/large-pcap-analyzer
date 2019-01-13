@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.com/f18m/large-pcap-analyzer.svg?branch=master)](https://travis-ci.com/f18m/large-pcap-analyzer)
+
 # Large PCAP file analyzer
 Large PCAP file analyzer is a command-line utility program that performs some simple operations
 on .PCAP files very quickly. This allows you to manipulate also very large PCAP files 
