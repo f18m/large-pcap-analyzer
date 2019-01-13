@@ -783,7 +783,7 @@ uninstall-am: uninstall-binPROGRAMS
 
 
 check: $(bin_PROGRAMS)
-	cd test-pcaps && chmod a+x ./run_tests.sh && ./run_tests.sh
+	cd test-pcaps && chmod a+x ./run_tests.sh && bash -x run_tests.sh
 
 # "test" or "tests" are just synonyms of "check"
 test: check
