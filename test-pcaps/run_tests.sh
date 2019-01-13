@@ -8,9 +8,28 @@
 set -euo pipefail
 
 # test the locally-build LPA
-lpa_binary=../large_pcap_analyzer
+lpa_binary="../large_pcap_analyzer"
+
+# other 3rd party binaries we need:
+tcpdump_binary="$(which tcpdump)"
+tshark_binary="$(which tshark)"
 
 
+function find_dependencies_or_die()
+{
+	if [ ! -x "$lpa_binary" ]; then
+		echo "Cannot find the large-pcap-analyzer executable to test!" >&2
+		exit 2
+	fi
+	if [ -z "$tcpdump_binary" ]; then
+		echo "Cannot find the tcpdump executable!" >&2
+		exit 3
+	fi
+	if [ -z "$tshark_binary" ]; then
+		echo "Cannot find the tshark executable!" >&2
+		exit 4
+	fi
+}
 
 function test_timing()
 {
@@ -43,7 +62,7 @@ function test_tcpdump_filter()
 		$lpa_binary -w /tmp/filter${testnum}-lpa.pcap -Y "${pcap_filter[testnum]}" ${test_file[testnum]} >/dev/null
 		if [ $? -ne 0 ]; then echo "Failed test of PCAP filter (-Y option)" ; exit 1 ; fi
 		
-		tcpdump -w /tmp/filter${testnum}-tcpdump.pcap -r ${test_file[testnum]}   "${pcap_filter[testnum]}" >/dev/null 2>&1
+		$tcpdump_binary -w /tmp/filter${testnum}-tcpdump.pcap -r ${test_file[testnum]}   "${pcap_filter[testnum]}" >/dev/null 2>&1
 		if [ $? -ne 0 ]; then echo "Failed test of PCAP filter (-Y option)" ; exit 1 ; fi
 		
 		cmp --silent /tmp/filter${testnum}-lpa.pcap /tmp/filter${testnum}-tcpdump.pcap
@@ -92,7 +111,7 @@ function test_gtpu_filter()
 		$lpa_binary -w /tmp/filter${testnum}-lpa.pcap -G "${pcap_filter[testnum]}" ${test_file[testnum]} >/dev/null
 		if [ $? -ne 0 ]; then echo "Failed test of PCAP filter (-G option)" ; exit 1 ; fi
 		
-		tshark -F pcap -w /tmp/filter${testnum}-tshark.pcap -r ${test_file[testnum]}  ${tshark_dissect_opt[testnum]}  "${tshark_filter[testnum]}" >/dev/null 2>&1
+		$tshark_binary -F pcap -w /tmp/filter${testnum}-tshark.pcap -r ${test_file[testnum]}  ${tshark_dissect_opt[testnum]}  "${tshark_filter[testnum]}" >/dev/null 2>&1
 		if [ $? -ne 0 ]; then echo "Failed test of PCAP filter (-G option)" ; exit 1 ; fi
 		
 		cmp --silent /tmp/filter${testnum}-lpa.pcap /tmp/filter${testnum}-tshark.pcap
@@ -125,7 +144,7 @@ function test_extract_conn_filter()
 			$lpa_binary -w /tmp/filter${testnum}-lpa.pcap $option "${pcap_filter[testnum]}" ${test_file[testnum]} >/dev/null
 			if [ $? -ne 0 ]; then echo "Failed test of PCAP filter (-G option)" ; exit 1 ; fi
 			
-			tshark -F pcap -w /tmp/filter${testnum}-tshark.pcap -r ${test_file[testnum]}  ${tshark_dissect_opt[testnum]}  "${tshark_filter[testnum]}" >/dev/null 2>&1
+			$tshark_binary -F pcap -w /tmp/filter${testnum}-tshark.pcap -r ${test_file[testnum]}  ${tshark_dissect_opt[testnum]}  "${tshark_filter[testnum]}" >/dev/null 2>&1
 			if [ $? -ne 0 ]; then echo "Failed test of PCAP filter (-G option)" ; exit 1 ; fi
 			
 			cmp --silent /tmp/filter${testnum}-lpa.pcap /tmp/filter${testnum}-tshark.pcap
@@ -170,7 +189,7 @@ function test_tcp_filter()
 			$lpa_binary -w /tmp/filter${testnum}-lpa.pcap $option "${tcp_filter[testnum]}" ${test_file[testnum]} >/dev/null
 			if [ $? -ne 0 ]; then echo "Failed test of TCP filter (-T option)" ; exit 1 ; fi
 			
-			tshark -F pcap -w /tmp/filter${testnum}-tshark.pcap -r ${test_file[testnum]}   "${tshark_filter[testnum]}" >/dev/null 2>&1
+			$tshark_binary -F pcap -w /tmp/filter${testnum}-tshark.pcap -r ${test_file[testnum]}   "${tshark_filter[testnum]}" >/dev/null 2>&1
 			if [ $? -ne 0 ]; then echo "Failed test of TCP filter (-T option)" ; exit 1 ; fi
 			
 			cmp --silent /tmp/filter${testnum}-lpa.pcap /tmp/filter${testnum}-tshark.pcap
@@ -216,6 +235,7 @@ function test_set_duration()
 	done
 }
 
+find_dependencies_or_die
 test_timing
 test_tcpdump_filter
 test_gtpu_filter

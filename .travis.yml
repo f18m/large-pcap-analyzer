@@ -4,3 +4,6 @@ addons:
   apt:
     packages:
     - libpcap-dev
+    - diffutils
+    - tcpdump
+    - wireshark-common
