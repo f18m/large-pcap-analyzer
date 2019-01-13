@@ -785,6 +785,10 @@ uninstall-am: uninstall-binPROGRAMS
 check: $(bin_PROGRAMS)
 	cd test-pcaps && ./run_tests.sh
 
+# "test" or "tests" are just synonyms of "check"
+test: check
+tests: check
+
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:

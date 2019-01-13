@@ -1,4 +1,6 @@
 src/*.o
+src/config.h
+src/stamp-h1
 .cproject
 .project
 autom4te.cache/

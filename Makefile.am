@@ -9,4 +9,7 @@ large_pcap_analyzer_SOURCES = src/large-pcap-analyzer.cpp src/filter.cpp src/par
 
 check: $(bin_PROGRAMS)
 	cd test-pcaps && ./run_tests.sh
-	
+
+# "test" or "tests" are just synonyms of "check"
+test: check
+tests: check
