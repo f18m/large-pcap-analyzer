@@ -18,16 +18,16 @@ tshark_binary="$(which tshark)"
 function find_dependencies_or_die()
 {
 	if [ ! -x "$lpa_binary" ]; then
-		echo "Cannot find the large-pcap-analyzer executable to test!" >&2
-		exit 2
+		echo "Cannot find the large-pcap-analyzer executable to test!"
+		exit 20
 	fi
 	if [ -z "$tcpdump_binary" ]; then
-		echo "Cannot find the tcpdump executable!" >&2
-		exit 3
+		echo "Cannot find the tcpdump executable!"
+		exit 30
 	fi
 	if [ -z "$tshark_binary" ]; then
-		echo "Cannot find the tshark executable!" >&2
-		exit 4
+		echo "Cannot find the tshark executable!"
+		exit 40
 	fi
 }
 
