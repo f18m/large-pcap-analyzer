@@ -3,6 +3,7 @@ language: cpp
 addons:
   apt:
     packages:
+    - automake
     - libpcap-dev
     - diffutils
     - tcpdump
