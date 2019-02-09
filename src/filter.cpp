@@ -3,8 +3,6 @@
  *
  * Author: Francesco Montorsi
  * Website: https://github.com/f18m/large-pcap-analyzer
- * Created: Nov 2014
- * Last Modified: Jan 2017
  *
  * LICENSE:
 	This program is free software; you can redistribute it and/or modify
@@ -52,47 +50,6 @@
 
 u_char g_buffer[MAX_SNAPLEN];
 
-
-//------------------------------------------------------------------------------
-// FilterCriteria
-//------------------------------------------------------------------------------
-
-bool FilterCriteria::prepare_filter(const std::string& pcap_filter_str,
-		const std::string& gtpu_filter_str, const std::string& str_filter,
-		TcpFilterMode valid_tcp_filter)
-{
-	// PCAP filter
-	if (!pcap_filter_str.empty()) {
-		if (pcap_compile_nopcap(MAX_SNAPLEN, DLT_EN10MB, &capture_filter,
-				pcap_filter_str.c_str(), 0 /* optimize */, PCAP_NETMASK_UNKNOWN)
-				!= 0) {
-			printf_error( "Cannot parse PCAP filter: %s\n",
-					pcap_filter_str.c_str());
-			return false;
-		}
-
-		capture_filter_set = true;
-		printf_verbose("Successfully compiled PCAP filter: %s\n", pcap_filter_str.c_str());
-	}
-	// GTPu PCAP filter
-	if (!gtpu_filter_str.empty()) {
-
-		if (pcap_compile_nopcap(MAX_SNAPLEN, DLT_EN10MB, &gtpu_filter,
-				gtpu_filter_str.c_str(), 0 /* optimize */, PCAP_NETMASK_UNKNOWN)
-				!= 0) {
-			printf_error( "Cannot parse GTPu filter: %s\n",
-					gtpu_filter_str.c_str());
-			return false;
-		}
-
-		gtpu_filter_set = true;
-		printf_verbose("Successfully compiled GTPu PCAP filter: %s\n", gtpu_filter_str.c_str());
-	}
-	// other filters:
-	string_filter = str_filter;
-	valid_tcp_filter_mode = valid_tcp_filter;
-	return true;
-}
 
 //------------------------------------------------------------------------------
 // Static Functions
@@ -196,22 +153,60 @@ static bool apply_filter_on_inner_ip_frame(const Packet& pkt,
 }
 
 
+
 //------------------------------------------------------------------------------
-// Global Functions
+// FilterCriteria
 //------------------------------------------------------------------------------
 
-bool FilterCriteria::must_be_saved(const Packet& pkt, bool* is_gtpu) const	// will do a logical OR of all filters set
+bool FilterCriteria::prepare_filter(const std::string& pcap_filter_str,
+		const std::string& gtpu_filter_str, const std::string& str_filter,
+		TcpFilterMode valid_tcp_filter)
+{
+	// PCAP filter
+	if (!pcap_filter_str.empty()) {
+		if (pcap_compile_nopcap(MAX_SNAPLEN, DLT_EN10MB, &m_capture_filter,
+				pcap_filter_str.c_str(), 0 /* optimize */, PCAP_NETMASK_UNKNOWN)
+				!= 0) {
+			printf_error( "Cannot parse PCAP filter: %s\n",
+					pcap_filter_str.c_str());
+			return false;
+		}
+
+		m_capture_filter_set = true;
+		printf_verbose("Successfully compiled PCAP filter: %s\n", pcap_filter_str.c_str());
+	}
+	// GTPu PCAP filter
+	if (!gtpu_filter_str.empty()) {
+
+		if (pcap_compile_nopcap(MAX_SNAPLEN, DLT_EN10MB, &m_gtpu_filter,
+				gtpu_filter_str.c_str(), 0 /* optimize */, PCAP_NETMASK_UNKNOWN)
+				!= 0) {
+			printf_error( "Cannot parse GTPu filter: %s\n",
+					gtpu_filter_str.c_str());
+			return false;
+		}
+
+		m_gtpu_filter_set = true;
+		printf_verbose("Successfully compiled GTPu PCAP filter: %s\n", gtpu_filter_str.c_str());
+	}
+	// other filters:
+	m_string_filter = str_filter;
+	m_valid_tcp_filter_mode = valid_tcp_filter;
+	return true;
+}
+
+bool FilterCriteria::must_be_saved(const Packet& pkt, bool* is_gtpu)	// will do a logical OR of all filters set
 {
 	// string-search filter:
 
-	if (UNLIKELY( !string_filter.empty() ))
+	if (UNLIKELY( !m_string_filter.empty() ))
 	{
 		unsigned int len = MIN(pkt.len(), MAX_SNAPLEN);
 
 		memcpy(g_buffer, pkt.data(), len);
 		g_buffer[len] = '\0';
 
-		void* result = memmem(g_buffer, len, string_filter.c_str(), string_filter.size());
+		void* result = memmem(g_buffer, len, m_string_filter.c_str(), m_string_filter.size());
 		if (result != NULL)
 			// string was found inside the packet!
 			return true;   // useless to proceed!
@@ -220,9 +215,9 @@ bool FilterCriteria::must_be_saved(const Packet& pkt, bool* is_gtpu) const	// wi
 
 	// PCAP capture filter:
 
-	if (UNLIKELY( capture_filter_set ))
+	if (UNLIKELY( m_capture_filter_set ))
 	{
-		int ret = pcap_offline_filter(&capture_filter, pkt.header(), pkt.data());
+		int ret = pcap_offline_filter(&m_capture_filter, pkt.header(), pkt.data());
 		if (ret != 0)
 		{
 			// pcap_offline_filter returns
@@ -235,7 +230,7 @@ bool FilterCriteria::must_be_saved(const Packet& pkt, bool* is_gtpu) const	// wi
 
 	// GTPu capture filter:
 
-	if (UNLIKELY( gtpu_filter_set ))
+	if (UNLIKELY( m_gtpu_filter_set ))
 	{
 		// is this a GTPu packet?
 		int offset = 0, ipver = 0, len_after_inner_ip_start = 0;
@@ -244,10 +239,12 @@ bool FilterCriteria::must_be_saved(const Packet& pkt, bool* is_gtpu) const	// wi
 		{
 			if (is_gtpu) *is_gtpu = true;
 
+			m_num_gtpu_pkts++;
+
 			if (offset > 0 && len_after_inner_ip_start > 0)
 			{
 				// run the filter only on inner/encapsulated frame:
-				if (apply_filter_on_inner_ip_frame(pkt, offset, ipver, len_after_inner_ip_start, &gtpu_filter))
+				if (apply_filter_on_inner_ip_frame(pkt, offset, ipver, len_after_inner_ip_start, &m_gtpu_filter))
 					return true;   // useless to proceed!
 			}
 		}
@@ -256,15 +253,15 @@ bool FilterCriteria::must_be_saved(const Packet& pkt, bool* is_gtpu) const	// wi
 
 	// valid-TCP-stream filter:
 
-	if (UNLIKELY( valid_tcp_filter_mode != TCP_FILTER_NOT_ACTIVE ))
+	if (UNLIKELY( m_valid_tcp_filter_mode != TCP_FILTER_NOT_ACTIVE ))
 	{
 		flow_hash_t hash = compute_flow_hash(pkt);
 		if (hash != INVALID_FLOW_HASH)
 		{
-			flow_map_t::const_iterator entry = valid_tcp_firstpass_flows.find(hash);
-			if (entry != valid_tcp_firstpass_flows.end())
+			flow_map_t::const_iterator entry = m_valid_tcp_firstpass_flows.find(hash);
+			if (entry != m_valid_tcp_firstpass_flows.end())
 			{
-				switch (valid_tcp_filter_mode)
+				switch (m_valid_tcp_filter_mode)
 				{
 				case TCP_FILTER_CONN_HAVING_SYN:
 					if (entry->second >= FLOW_FOUND_SYN_AND_SYNACK)
@@ -287,3 +284,16 @@ bool FilterCriteria::must_be_saved(const Packet& pkt, bool* is_gtpu) const	// wi
 
 	return false;
 }
+
+bool FilterCriteria::post_filtering(unsigned long nloaded)
+{
+	if (m_gtpu_filter_set)
+	{
+		// in this case, the GTPu parser was run and we have a stat about how many packets are GTPu
+		printf_verbose("%luM packets (%lu packets) loaded from the input PCAP are GTPu packets (%.1f%%).\n",
+						m_num_gtpu_pkts / MILLION, m_num_gtpu_pkts, (double) (100.0 * (double) (m_num_gtpu_pkts) / (double) (nloaded)));
+	}
+
+	return true; // no error
+}
+

@@ -253,3 +253,30 @@ $ large_pcap_analyzer --timing /tmp/test.pcap
 Last packet has a timestamp offset = 1.20sec = 0.02min = 0.00hours
 Tcpreplay should replay this PCAP at an average of 105.00Mbps / 15167.50pps to respect PCAP timings.
 ```
+
+# Example run 7: change PCAP timestamps
+
+In this example the timestamps of 2 packets are manually tweaked.
+First of all current timestamps are extracted using a tool like [tshark](https://www.wireshark.org/docs/man-pages/tshark.html),
+in Epoch format:
+
+```
+$ tshark -F pcap -r test-pcaps/timing-test.pcap -Tfields -e frame.time_epoch >pkts_timings.txt
+```
+
+Then the timestamps of the 10-th packet and 11-th packet are replaced with the absolute time "Saturday 9 February 2019 19:20:00",
+corresponding to the Unix timestamp value 1549740000 (you can use an online tool like https://www.epochconverter.com/),
+in the dump of packet timestamps:
+
+```
+$ sed -i '10s/.*/1549740000.000000000/' pkts_timings.txt
+$ sed -i '11s/.*/1549740000.100000000/' pkts_timings.txt
+```
+
+Finally using the Large PCAP file analyzer tool, the capture trace is actually modified and the result is saved into the
+"out.pcap" file:
+
+```
+$ large_pcap_analyzer --write out.pcap --set-timestamps pkts_timings.txt test-pcaps/timing-test.pcap
+```
+

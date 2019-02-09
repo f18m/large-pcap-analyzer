@@ -3,8 +3,6 @@
  *
  * Author: Francesco Montorsi
  * Website: https://github.com/f18m/large-pcap-analyzer
- * Created: Nov 2014
- * Last Modified: Jan 2017
  *
  *
  * LICENSE:

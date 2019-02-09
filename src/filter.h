@@ -3,8 +3,6 @@
  *
  * Author: Francesco Montorsi
  * Website: https://github.com/f18m/large-pcap-analyzer
- * Created: Nov 2014
- * Last Modified: Jan 2017
  *
  * LICENSE:
 	This program is free software; you can redistribute it and/or modify
@@ -58,19 +56,20 @@ class FilterCriteria
 public:
 	FilterCriteria()
 	{
-		memset(&capture_filter, 0, sizeof(capture_filter));
-		memset(&gtpu_filter, 0, sizeof(gtpu_filter));
-		capture_filter_set = false;
-		gtpu_filter_set = false;
-		valid_tcp_filter_mode = TCP_FILTER_NOT_ACTIVE;
+		memset(&m_capture_filter, 0, sizeof(m_capture_filter));
+		memset(&m_gtpu_filter, 0, sizeof(m_gtpu_filter));
+		m_capture_filter_set = false;
+		m_gtpu_filter_set = false;
+		m_valid_tcp_filter_mode = TCP_FILTER_NOT_ACTIVE;
+		m_num_gtpu_pkts = 0;
 	}
 
 	~FilterCriteria()
 	{
-		if (capture_filter_set)
-			pcap_freecode(&capture_filter);
-		if (gtpu_filter_set)
-			pcap_freecode(&gtpu_filter);
+		if (m_capture_filter_set)
+			pcap_freecode(&m_capture_filter);
+		if (m_gtpu_filter_set)
+			pcap_freecode(&m_gtpu_filter);
 	}
 
 	bool prepare_filter(const std::string& pcap_filter_str,
@@ -81,32 +80,44 @@ public:
 	static bool convert_extract_filter(const std::string& extract_filter, std::string& output_pcap_filter);
 
 
-	bool is_some_filter_active() const
-		{ return (capture_filter_set || gtpu_filter_set || !string_filter.empty() || valid_tcp_filter_mode != TCP_FILTER_NOT_ACTIVE); }
+	// getters
 
-	bool is_capture_filter_set() const { return capture_filter_set; }
-	bool is_gtpu_filter_set() const { return gtpu_filter_set; }
+	bool is_some_filter_active() const
+		{ return (m_capture_filter_set || m_gtpu_filter_set || !m_string_filter.empty() || m_valid_tcp_filter_mode != TCP_FILTER_NOT_ACTIVE); }
+
+	bool is_capture_filter_set() const { return m_capture_filter_set; }
+	bool is_gtpu_filter_set() const { return m_gtpu_filter_set; }
 
 	bool needs_2passes() const
-		{ return valid_tcp_filter_mode != TCP_FILTER_NOT_ACTIVE; }
+		{ return m_valid_tcp_filter_mode != TCP_FILTER_NOT_ACTIVE; }
 
-	bool must_be_saved(const Packet& pkt, bool* is_gtpu) const;
+	flow_map_t& flow_map()
+		{ return m_valid_tcp_firstpass_flows; }
 
 
-private:
-	struct bpf_program 			capture_filter;
-	bool 						capture_filter_set;
+	// main API
+	bool must_be_saved(const Packet& pkt, bool* is_gtpu);
 
-	struct bpf_program 			gtpu_filter;
-	bool 						gtpu_filter_set;
+	bool post_filtering(unsigned long nloaded);
 
-	std::string					string_filter;
 
-	TcpFilterMode				valid_tcp_filter_mode;
+private:	// filter configuration
 
-public:
-	flow_map_t 					valid_tcp_firstpass_flows;			// contains the result of the 1st pass
+	struct bpf_program 			m_capture_filter;
+	bool 						m_capture_filter_set;
+
+	struct bpf_program 			m_gtpu_filter;
+	bool 						m_gtpu_filter_set;
+
+	std::string					m_string_filter;
+
+	TcpFilterMode				m_valid_tcp_filter_mode;
+
+
+private:	// filter status
+
+	unsigned long				m_num_gtpu_pkts;
+	flow_map_t 					m_valid_tcp_firstpass_flows;			// contains the result of the 1st pass
 };
-
 
 #endif	// FILTER_H_
