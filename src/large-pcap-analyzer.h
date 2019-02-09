@@ -3,21 +3,9 @@
  *
  * Author: Francesco Montorsi
  * Website: https://github.com/f18m/large-pcap-analyzer
- * Created: Nov 2014
- * Last Modified: Jan 2017
- *
- * History:
- *
- * v3.1 = first version released in Github
- * v3.2 = reworked command-line arguments to match those of "tshark" command line utility;
- *        added support for GTPu-filtering (-G option)
- * v3.3 = added filtering for valid GTPu-encapsulated TCP connections (-T option)
- * v3.4 = added modes (syn|3way|3way-data) to the -T option
- * v3.4.2 = added -C option
- *
  *
  * LICENSE:
-	 This program is free software; you can redistribute it and/or modify
+	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
 	the Free Software Foundation; either version 2 of the License, or
 	(at your option) any later version.
@@ -209,7 +197,6 @@ public:
 	{
 		m_pcap_header->ts.tv_sec = (time_t)ts;
 		m_pcap_header->ts.tv_usec = SEC_TO_USEC(ts) - SEC_TO_USEC(m_pcap_header->ts.tv_sec);
-
 	}
 
 private:
@@ -224,6 +211,7 @@ private:
 //------------------------------------------------------------------------------
 
 extern void printf_verbose(const char *fmtstr, ...);
+extern void printf_normal(const char *fmtstr, ...);
 extern void printf_error(const char *fmtstr, ...);
 
 #endif

@@ -1,0 +1,76 @@
+*****************************************************************************************************
+large-pcap-analyzer v3.6.0
+released on Feb 10, 2019
+
+New features
+* add --set-timestamps options
+
+Others
+* added TravisCI integration for continuous testing
+
+
+*****************************************************************************************************
+large-pcap-analyzer v3.5.1
+released on Jun 13, 2018
+
+New features
+* add --quiet mode option to allow this utility to be used easily from external scripts
+* fix some casts that blocked i386/armhf building
+
+
+*****************************************************************************************************
+large-pcap-analyzer v3.5.0
+released on Jun 10, 2018
+
+New features
+* add --set-duration option that allows altering PCAP timestamps
+* add support for long options also for other existing commands
+* add SNAP distribution/deployment option (with snapcraft integration)
+* add RPM distribution/deployment option (with copr integration)
+
+
+*****************************************************************************************************
+large-pcap-analyzer v3.4.3
+released on Mar 14, 2018
+
+Fixes:
+* allow building with GCC 7.x
+* allow configure script to run on systems with automake <15 like Centos 7
+
+
+*****************************************************************************************************
+large-pcap-analyzer v3.4.2
+released on Feb 28, 2017
+
+Major new features:
+* added -C option to extract a TCP/UDP/SCTP connection (possibly GTPu-encapsulated) by specifying 
+  in a compact form the 4tuple (IP:port IP:port)
+
+
+*****************************************************************************************************
+large-pcap-analyzer v3.4.0
+released on Feb 15, 2017
+
+New features:
+* added 3 modes to the -T option: -T syn, -T full3way and -T full3way-data, see help for more info
+* added testing to avoid regression, see "make check"
+* added C++11 optional support for faster -T filtering
+
+Fixed some bugs with TCP parsing (when optional headers are present) and with GTPu padding
+
+
+*****************************************************************************************************
+large-pcap-analyzer v3.2 up to 3.3.1
+released on Feb 7, 2017
+
+New features:
+* added -T filtering mode to extract "valid" TCP connections: this adds a stateful filter to this utility
+* reworked command-line arguments to match those of "tshark" command line utility;
+* added support for GTPu-filtering (-G option)
+* added several command-line options (-v, -a)
+
+Fixes:
+* fix GTPu parsing in compute_hash() for GTPu packets
+* fix compatibility issues with pcap.h inclusion
+* fix packaging issues
+* fix C99 build issue
