@@ -81,9 +81,10 @@ public:
 	void set_num_packets(unsigned long npkts)
 		{ m_num_input_pkts = npkts; }
 
-	// returns true if the output packet has been filled or false if no action
-	// was performed on the input packet and thus the caller should use the pktIn instance
-	bool process_packet(const Packet& pktIn, Packet& pktOut, unsigned int pktIdx);
+	// returns true if the processing is successful or false if it should be aborted.
+	// NOTE: pktWasChanged will be set to true if output packet has been filled or false if no action
+	//       was performed on the input packet and thus the caller should use the pktIn instance
+	bool process_packet(const Packet& pktIn, Packet& pktOut, unsigned int pktIdx, bool& pktWasChangedOut);
 
 	bool post_processing(unsigned int totNumPkts);
 

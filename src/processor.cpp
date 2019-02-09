@@ -116,8 +116,14 @@ bool PacketProcessor::prepare_processor(const std::string& set_duration, const s
 		double ts;
 		while (std::getline(infile, line))
 		{
+			if (line.empty()) {
+				// give 1-based line index:
+				printf_error("Invalid empty line %d in the file with packet timings '%s'\n", lineIdx+1, timestamp_file.c_str());
+				return false;
+			}
 			if (!String2TimestampInSecs(line, ts)) {
-				printf_error("Invalid line %d in the file with packet timings '%s'\n", lineIdx, timestamp_file.c_str());
+				// give 1-based line index:
+				printf_error("Invalid timestamp at line %d in the file with packet timings '%s': %s\n", lineIdx+1, timestamp_file.c_str(), line.c_str());
 				return false;
 			}
 			m_timestamps.push_back(ts);
@@ -131,12 +137,15 @@ bool PacketProcessor::prepare_processor(const std::string& set_duration, const s
 	return true;
 }
 
-bool PacketProcessor::process_packet(const Packet& pktIn, Packet& pktOut, unsigned int pktIdx)
+bool PacketProcessor::process_packet(const Packet& pktIn, Packet& pktOut, unsigned int pktIdx, bool& pktWasChangedOut)
 {
 	switch (m_proc_mode)
 	{
 		case PROCMODE_NONE:
-			return false; // no proc done
+		{
+			pktWasChangedOut = false; // no proc done, use original packet
+		}
+		break;
 
 		case PROCMODE_CHANGE_DURATION:
 		{
@@ -150,7 +159,7 @@ bool PacketProcessor::process_packet(const Packet& pktIn, Packet& pktOut, unsign
 				if (m_first_pkt_ts_sec == 0)
 					printf_error("WARNING: invalid timestamp zero (Thursday, 1 January 1970 00:00:00) for the first packet. This is unusual.\n");
 
-				return false; // no proc done
+				pktWasChangedOut = false; // no proc done, use original packet
 			}
 			else
 			{
@@ -163,23 +172,23 @@ bool PacketProcessor::process_packet(const Packet& pktIn, Packet& pktOut, unsign
 				pktOut.copy(pktIn.header(), pktIn.data());
 				pktOut.set_timestamp_from_seconds(thisPktTs);
 
-				return true;
+				pktWasChangedOut = true;
 			}
 		}
 		break;
 
 		case PROCMODE_SET_TIMESTAMPS:
 		{
-			if (pktIdx > m_timestamps.size()) {
+			if (pktIdx >= m_timestamps.size()) {
 				printf_error("Too few timestamps specified in the file with timestamps '%s': %zu but input PCAP has more.\n",
 						m_timestamps_input_file.c_str(), m_timestamps.size());
-				return false;
+				return false; // abort processing!
 			}
 
 			pktOut.copy(pktIn.header(), pktIn.data());
 			pktOut.set_timestamp_from_seconds(m_timestamps[pktIdx]);
 
-			return true;
+			pktWasChangedOut = true;
 		}
 		break;
 
@@ -187,6 +196,8 @@ bool PacketProcessor::process_packet(const Packet& pktIn, Packet& pktOut, unsign
 			assert(0);
 			return false;
 	}
+
+	return true;
 }
 
 bool PacketProcessor::post_processing(unsigned int totNumPkts)
@@ -201,7 +212,7 @@ bool PacketProcessor::post_processing(unsigned int totNumPkts)
 		{
 			if (totNumPkts < m_timestamps.size()) {
 				printf_error("Too many timestamps specified in the file with timestamps '%s': %zu but input PCAP has %zu packets.\n",
-						m_timestamps_input_file.c_str(), m_timestamps.size(), totNumPkts);
+								m_timestamps_input_file.c_str(), m_timestamps.size(), totNumPkts);
 				return false;
 			}
 

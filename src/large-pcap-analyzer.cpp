@@ -385,17 +385,27 @@ static bool process_pcap_handle(pcap_t* pcap_handle_in,
 		//else: filtering disabled, save all packets
 
 		if (tosave) {
-			if (processorcfg && processorcfg->process_packet(pkt, tempPkt, nmatching /* this is the index of the saved packets */))
+			if (processorcfg)
 			{
-				if (pcap_dumper)
-					pcap_dump((u_char *) pcap_dumper, tempPkt.header(), tempPkt.data());
+				bool pktWasChanged = false;
+				if (!processorcfg->process_packet(pkt, tempPkt, nmatching /* this is the index of the saved packets */, pktWasChanged)) {
+					printf_error("Error while processing packet %lu. Aborting.\n", nmatching);
+					return false;
+				}
+
+				if (pktWasChanged)
+				{
+					if (pcap_dumper)
+						pcap_dump((u_char *) pcap_dumper, tempPkt.header(), tempPkt.data());
+				}
+				else
+				{
+					// dump original packet
+					if (pcap_dumper)
+						pcap_dump((u_char *) pcap_dumper, pcap_header, pcap_packet);
+				}
 			}
-			else
-			{
-				// dump original packet
-				if (pcap_dumper)
-					pcap_dump((u_char *) pcap_dumper, pcap_header, pcap_packet);
-			}
+
 			nmatching++;
 		}
 		if (is_gtpu)
