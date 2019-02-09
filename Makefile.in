@@ -692,10 +692,6 @@ clean: clean-am
 
 clean-am: clean-binPROGRAMS clean-generic mostlyclean-am
 
-distclean: distclean-am
-	-rm -f $(am__CONFIG_DISTCLEAN_FILES)
-	-rm -rf src/$(DEPDIR)
-	-rm -f Makefile
 distclean-am: clean-am distclean-compile distclean-generic \
 	distclean-hdr distclean-tags
 
@@ -783,11 +779,15 @@ uninstall-am: uninstall-binPROGRAMS
 
 
 check: $(bin_PROGRAMS)
-	cd test-pcaps && chmod a+x ./run_tests.sh && bash -x run_tests.sh
+	cd test-pcaps && chmod a+x ./run_tests.sh && bash run_tests.sh
 
 # "test" or "tests" are just synonyms of "check"
 test: check
 tests: check
+
+distclean:
+	rm -f Makefile config.log config.status src/.dirstamp src/config.h src/stamp-h1
+	rm -rf autom4te.cache snap/.snapcraft src/.deps
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

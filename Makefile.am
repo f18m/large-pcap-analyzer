@@ -8,8 +8,12 @@ bin_PROGRAMS = large_pcap_analyzer
 large_pcap_analyzer_SOURCES = src/large-pcap-analyzer.cpp src/filter.cpp src/parse.cpp src/processor.cpp src/pcap_helpers.cpp
 
 check: $(bin_PROGRAMS)
-	cd test-pcaps && chmod a+x ./run_tests.sh && bash -x run_tests.sh
+	cd test-pcaps && chmod a+x ./run_tests.sh && bash run_tests.sh
 
 # "test" or "tests" are just synonyms of "check"
 test: check
 tests: check
+
+distclean:
+	rm -f Makefile config.log config.status src/.dirstamp src/config.h src/stamp-h1
+	rm -rf autom4te.cache snap/.snapcraft src/.deps
