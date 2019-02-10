@@ -81,7 +81,7 @@ static struct option g_long_options[] = {
 
 	// processing options
 	{"set-duration",      required_argument, 0,  'D' },
-	{"set-timestamps",    required_argument, 0,  's' },
+	{"set-timestamps-from",required_argument, 0,  's' },
 
 	{0,                   0,                 0,  0 }
 };
@@ -143,7 +143,7 @@ void printf_error(const char *fmtstr, ...)
 static void print_help()
 {
 	printf("%s version %s\n", PACKAGE_NAME, PACKAGE_VERSION);
-	printf("by Francesco Montorsi, (c) 2014-2018\n");
+	printf("by Francesco Montorsi, (c) 2014-2019\n");
 	printf("Usage:\n");
 	printf("  %s [options] somefile.pcap ...\n", PACKAGE_NAME);
 	printf("Miscellaneous options:\n");
@@ -153,9 +153,9 @@ static void print_help()
 	printf(" -t,--timing              provide timestamp analysis on loaded packets\n");
 	printf(" -p,--stats               provide basic parsing statistics on loaded packets\n");
 	printf(" -a,--append              open output file in APPEND mode instead of TRUNCATE\n");
-	printf(" -w <outfile.pcap>\n");
-	printf(" --write <outfile.pcap>   where to save the PCAP containing the results of filtering\n");
-	printf("Filtering options (to select packets to save in outfile.pcap):\n");
+	printf(" -w <outfile.pcap>, --write <outfile.pcap>\n");
+	printf("                          where to save the PCAP containing the results of filtering/processing\n");
+	printf("Filtering options (i.e., options to select the packets to save in outfile.pcap):\n");
 	printf(" -Y <tcpdump_filter>, --display-filter <tcpdump_filter>\n");
 	printf("                          the PCAP filter to apply on packets (will be applied on outer IP frames for GTPu pkts)\n");
 	printf(" -G <gtpu_tcpdump_filter>, --inner-filter <gtpu_tcpdump_filter>\n");
@@ -169,15 +169,16 @@ static void print_help()
 	printf("                            -T syn: at least 1 SYN packet\n");
 	printf("                            -T full3way: the full 3way handshake\n");
 	printf("                            -T full3way-data: the full 3way handshake and data packets\n");
-	printf("Processing options (changes that will be done on packets selected for output):\n");
+	printf("Processing options (i.e., options that will change packets saved in outfile.pcap):\n");
 	printf(" --set-duration <HH:MM:SS>\n");
 	printf("                          alters packet timestamps so that the time difference between first and last packet\n");
 	printf("                          matches the given amount of time. All packets in the middle will be equally spaced in time.\n");
-	printf(" --set-timestamps <infile.txt>\n");
-	printf("                          alters all packet timestamps using the list of Unix timestamps contained in the given text file.\n");
-	printf("                          The file format is very simple: one line per packet, a single Unix timestamp in seconds (possibly with decimal part) per line.\n");
+	printf(" --set-timestamps-from <infile.txt>\n");
+	printf("                          alters all packet timestamps using the list of Unix timestamps contained in the given text file;\n");
+	printf("                          the file format is: one line per packet, a single Unix timestamp in seconds (floating point supported)\n");
+	printf("                          per line; the number of lines must match exactly the number of packets of the filtered input PCAP.\n");
 	printf("Inputs:\n");
-	printf(" somefile.pcap            the large PCAP to analyze (you can provide more than 1 file)\n");
+	printf(" somefile.pcap            the large PCAP trace to analyze; more than 1 file can be specified.\n");
 	printf("\n");
 	printf("Note that the -Y and -G options accept filters expressed in tcpdump/pcap_filters syntax.\n");
 	printf("See http://www.manpagez.com/man/7/pcap-filter/ for more info.\n");
@@ -812,7 +813,7 @@ int main(int argc, char **argv)
 	bool some_processing_set = !set_duration.empty() || !set_timestamps.empty();
 	if (some_processing_set && outfile.empty())
 	{
-		printf_error("A processing option (--set-duration or --set-timestamps) was provided but no output file (-w) was specified... aborting.\n");
+		printf_error("A processing option (--set-duration or --set-timestamps-from) was provided but no output file (-w) was specified... aborting.\n");
 		return 1;	// failure
 	}
 
@@ -845,7 +846,7 @@ int main(int argc, char **argv)
 	if (!set_duration.empty() && !set_timestamps.empty())
 	{
 		// either we compress all timestamps with given duration or rather we set all packet timestamps using input file, not both!
-		fprintf(stderr, "Both --set-duration and --set-timestamps were specified: this is not supported.\n");
+		fprintf(stderr, "Both --set-duration and --set-timestamps-from were specified: this is not supported.\n");
 		return 1;	// failure
 	}
 

@@ -180,8 +180,8 @@ bool PacketProcessor::process_packet(const Packet& pktIn, Packet& pktOut, unsign
 		case PROCMODE_SET_TIMESTAMPS:
 		{
 			if (pktIdx >= m_timestamps.size()) {
-				printf_error("Too few timestamps specified in the file with timestamps '%s': %zu but input PCAP has more.\n",
-						m_timestamps_input_file.c_str(), m_timestamps.size());
+				printf_error("Too few timestamps specified in the file with timestamps '%s': found %zu but input PCAP has more than %zu packets.\n",
+						m_timestamps_input_file.c_str(), m_timestamps.size(), m_timestamps.size());
 				return false; // abort processing!
 			}
 

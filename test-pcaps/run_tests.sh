@@ -270,7 +270,7 @@ function test_set_duration()
 
 function test_set_timestamps()
 {
-    echo "Testing --set-timestamps option..."
+    echo "Testing --set-timestamps-from option..."
 
     test_file[1]="timing-test.pcap"
     test_input_timestamps[1]="timestamps-30pkts.txt"
@@ -287,8 +287,8 @@ function test_set_timestamps()
 
     rm /tmp/filter*.pcap
     for testnum in $(seq 1 2); do
-        $lpa_binary -w /tmp/filter${testnum}-lpa.pcap --set-timestamps "${test_input_timestamps[testnum]}" ${test_file[testnum]} >/dev/null
-        if [ $? -ne 0 ]; then echo "Failed test of --set-timestamps option" ; exit 1 ; fi
+        $lpa_binary -w /tmp/filter${testnum}-lpa.pcap --set-timestamps-from "${test_input_timestamps[testnum]}" ${test_file[testnum]} >/dev/null
+        if [ $? -ne 0 ]; then echo "Failed test of --set-timestamps-from option" ; exit 1 ; fi
 
         # now validate against the --timing option
         local new_duration="$($lpa_binary -q --timing /tmp/filter${testnum}-lpa.pcap)"
@@ -296,7 +296,7 @@ function test_set_timestamps()
 
         # extract 10-th pkt timestamp:
         $tshark_binary -F pcap -r /tmp/filter${testnum}-lpa.pcap -Tfields -e frame.time_epoch >/tmp/pkts-timings-${testnum}.txt 2>/dev/null
-        if [ $? -ne 0 ]; then echo "Failed test of --set-timestamps option" ; exit 1 ; fi
+        if [ $? -ne 0 ]; then echo "Failed test of --set-timestamps-from option" ; exit 1 ; fi
         local found_timestamp="$(sed '10q;d' /tmp/pkts-timings-${testnum}.txt)"
 
         # now validate against tshark-extracted timestamp for 10th pkt:
@@ -304,6 +304,39 @@ function test_set_timestamps()
 
         echo "  ... testcase #$testnum passed."
     done
+
+
+    # test that providing a wrong number of files will fail the LPA:
+    #   we use the timestamps for test file #2 with test file #1:
+    $lpa_binary -w /tmp/failtest-lpa.pcap --set-timestamps-from "${test_input_timestamps[2]}" ${test_file[1]} >/dev/null 2>&1
+    if [ $? -eq 0 ]; then
+        echo "Failed test of --set-timestamps-from option: expected a failure but instead LPA returned success!"
+        exit 1
+    fi
+
+    (( testnum++ ))
+    echo "  ... testcase #$testnum passed."
+
+
+    #   we use the timestamps for test file #1 with test file #2:
+    $lpa_binary -w /tmp/failtest-lpa.pcap --set-timestamps-from "${test_input_timestamps[1]}" ${test_file[2]} >/dev/null 2>&1
+    if [ $? -eq 0 ]; then
+        echo "Failed test of --set-timestamps-from option: expected a failure but instead LPA returned success!"
+        exit 1
+    fi
+
+    (( testnum++ ))
+    echo "  ... testcase #$testnum passed."
+
+    # try to use a timestamp file which contains invalid syntax:
+    $lpa_binary -w /tmp/failtest-lpa.pcap --set-timestamps-from "test-pcaps/timestamps-invalid.txt" ${test_file[1]} >/dev/null 2>&1
+    if [ $? -eq 0 ]; then
+        echo "Failed test of --set-timestamps-from option: expected a failure but instead LPA returned success!"
+        exit 1
+    fi
+
+    (( testnum++ ))
+    echo "  ... testcase #$testnum passed."
 }
 
 find_dependencies_or_die

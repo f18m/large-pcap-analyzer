@@ -42,18 +42,19 @@ For developers: link to [Snapcraft page for large PCAP analyzer](https://build.s
 # Command line help
 
 ```
-	large-pcap-analyzer version 3.5.0
-	by Francesco Montorsi, (c) 2014-2018
+	large-pcap-analyzer version 3.6.0
+	by Francesco Montorsi, (c) 2014-2019
 	Usage:
 	  large-pcap-analyzer [options] somefile.pcap ...
 	Miscellaneous options:
 	 -h,--help                this help
 	 -v,--verbose             be verbose
+	 -q,--quiet               suppress all normal output, be script-friendly
 	 -t,--timing              provide timestamp analysis on loaded packets
 	 -p,--stats               provide basic parsing statistics on loaded packets
 	 -a,--append              open output file in APPEND mode instead of TRUNCATE
-	 -w <outfile.pcap>
-	 --write <outfile.pcap>   where to save the PCAP containing the results of filtering
+	 -w <outfile.pcap>, --write <outfile.pcap>
+	                          where to save the PCAP containing the results of filtering/processing
 	Filtering options (to select packets to save in outfile.pcap):
 	 -Y <tcpdump_filter>, --display-filter <tcpdump_filter>
 	                          the PCAP filter to apply on packets (will be applied on outer IP frames for GTPu pkts)
@@ -72,8 +73,12 @@ For developers: link to [Snapcraft page for large PCAP analyzer](https://build.s
 	 --set-duration <HH:MM:SS>
 	                          alters packet timestamps so that the time difference between first and last packet
 	                          matches the given amount of time. All packets in the middle will be equally spaced in time.
+	 --set-timestamps-from <infile.txt>
+	                          alters all packet timestamps using the list of Unix timestamps contained in the given text file;
+	                          the file format is: one line per packet, a single Unix timestamp in seconds (floating point supported)
+	                          per line; the number of lines must match exactly the number of packets of the filtered input PCAP.
 	Inputs:
-	 somefile.pcap            the large PCAP to analyze (you can provide more than 1 file)
+	 somefile.pcap            the large PCAP trace to analyze (you can provide more than 1 file)
 	
 	Note that the -Y and -G options accept filters expressed in tcpdump/pcap_filters syntax.
 	See http://www.manpagez.com/man/7/pcap-filter/ for more info.
@@ -277,6 +282,6 @@ Finally using the Large PCAP file analyzer tool, the capture trace is actually m
 "out.pcap" file:
 
 ```
-$ large_pcap_analyzer --write out.pcap --set-timestamps pkts_timings.txt test-pcaps/timing-test.pcap
+$ large_pcap_analyzer --write out.pcap --set-timestamps-from pkts_timings.txt test-pcaps/timing-test.pcap
 ```
 
