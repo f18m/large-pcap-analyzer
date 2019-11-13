@@ -306,7 +306,7 @@ function test_set_timestamps()
     done
 
 
-    # test that providing a wrong number of files will fail the LPA:
+    # test that providing a wrong number of packets in the input timestamp file will trigger an error printed by the LPA:
     #   we use the timestamps for test file #2 with test file #1:
     $lpa_binary -w /tmp/failtest-lpa.pcap --set-timestamps-from "${test_input_timestamps[2]}" ${test_file[1]} >/dev/null 2>&1
     if [ $? -eq 0 ]; then
@@ -317,7 +317,7 @@ function test_set_timestamps()
     (( testnum++ ))
     echo "  ... testcase #$testnum passed."
 
-
+    # test again that LPA fails if mismatching number of packets are provided
     #   we use the timestamps for test file #1 with test file #2:
     $lpa_binary -w /tmp/failtest-lpa.pcap --set-timestamps-from "${test_input_timestamps[1]}" ${test_file[2]} >/dev/null 2>&1
     if [ $? -eq 0 ]; then

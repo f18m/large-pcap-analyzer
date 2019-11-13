@@ -63,7 +63,7 @@ bool String2TimestampInSecs(const std::string& str, double& result)
 // PacketProcessorConfig
 //------------------------------------------------------------------------------
 
-bool PacketProcessor::prepare_processor(const std::string& set_duration, const std::string& timestamp_file)
+bool PacketProcessor::prepare_processor(const std::string& set_duration, bool preserve_ifg, const std::string& timestamp_file)
 {
 	if (!set_duration.empty()) {
 		// the duration string can be a number in format
@@ -75,10 +75,10 @@ bool PacketProcessor::prepare_processor(const std::string& set_duration, const s
 		int num_colons = std::count(set_duration.begin(), set_duration.end(), ':');
 		if (num_dots == 1 && num_colons == 0) {
 			// FIRST SYNTAX FORMAT
-			m_duration_secs = atof(set_duration.c_str()) ;
+			m_new_duration_secs = atof(set_duration.c_str()) ;
 		} else if (num_dots == 0 && num_colons == 0) {
 			// FIRST SYNTAX FORMAT WITHOT FRACTIONAL SECS
-			m_duration_secs = atoi(set_duration.c_str()) ;
+			m_new_duration_secs = atoi(set_duration.c_str()) ;
 		} else if (num_dots <= 1 && num_colons == 2 &&
 				set_duration.size() >= 8 /* chars */ &&
 				set_duration[2] == ':' &&
@@ -89,15 +89,18 @@ bool PacketProcessor::prepare_processor(const std::string& set_duration, const s
 			int mm = atoi(set_duration.substr(3, 5).c_str());
 			double ss = atof(set_duration.substr(6).c_str());
 
-			m_duration_secs = hh*3600 + mm*60 + ss;
+			m_new_duration_secs = hh*3600 + mm*60 + ss;
 
 		} else {
 			printf_error("Cannot parse PCAP duration to set: %s\n", set_duration.c_str());
 			return false;
 		}
 
-		m_proc_mode = PROCMODE_CHANGE_DURATION;
-		printf_verbose("PCAP duration will be set to: %f secs\n", m_duration_secs);
+		if (preserve_ifg)
+			m_proc_mode = PROCMODE_CHANGE_DURATION_PRESERVE_IFG;
+		else
+			m_proc_mode = PROCMODE_CHANGE_DURATION_RESET_IFG;
+		printf_verbose("PCAP duration will be set to: %f secs (IFG will be %s)\n", m_new_duration_secs, preserve_ifg ? "preserved" : "reset");
 	}
 	else if (!timestamp_file.empty()) {
 		// validate input file:
@@ -139,6 +142,8 @@ bool PacketProcessor::prepare_processor(const std::string& set_duration, const s
 
 bool PacketProcessor::process_packet(const Packet& pktIn, Packet& pktOut, unsigned int pktIdx, bool& pktWasChangedOut)
 {
+	pktWasChangedOut = false; // by default: no proc done, use original packet
+
 	switch (m_proc_mode)
 	{
 		case PROCMODE_NONE:
@@ -147,32 +152,88 @@ bool PacketProcessor::process_packet(const Packet& pktIn, Packet& pktOut, unsign
 		}
 		break;
 
-		case PROCMODE_CHANGE_DURATION:
+		case PROCMODE_CHANGE_DURATION_RESET_IFG:
 		{
-			assert(m_duration_secs>0);
-			assert(m_num_input_pkts>0);
-
-			if (pktIdx == 0)
+			if (m_current_pass == 0)
 			{
-				assert(m_first_pkt_ts_sec == 0);
-				m_first_pkt_ts_sec = pktIn.pcap_timestamp_to_seconds();
-				if (m_first_pkt_ts_sec == 0)
-					printf_error("WARNING: invalid timestamp zero (Thursday, 1 January 1970 00:00:00) for the first packet. This is unusual.\n");
-
-				pktWasChangedOut = false; // no proc done, use original packet
+				// in the first pass just count the number of packets to process:
+				m_num_input_pkts++;
 			}
-			else
+			else // second pass
 			{
-				//if (m_first_pkt_ts_sec == 0)
-					//return false; // cannot process
+				assert(m_new_duration_secs>0);
+				assert(m_num_input_pkts>0);
 
-				double secInterPktGap = m_duration_secs/m_num_input_pkts;
-				double thisPktTs = m_first_pkt_ts_sec + secInterPktGap*(pktIdx+1);
+				if (pktIdx == 0)
+				{
+					assert(m_first_pkt_ts_sec == 0);
+					m_first_pkt_ts_sec = pktIn.pcap_timestamp_to_seconds();
 
-				pktOut.copy(pktIn.header(), pktIn.data());
-				pktOut.set_timestamp_from_seconds(thisPktTs);
+					if (m_first_pkt_ts_sec == 0)
+						printf_error("WARNING: invalid timestamp zero (Thursday, 1 January 1970 00:00:00) for the first packet. This is unusual.\n");
 
-				pktWasChangedOut = true;
+					pktWasChangedOut = false; // no proc done, use original packet
+				}
+				else
+				{
+					//if (m_first_pkt_ts_sec == 0)
+						//return false; // cannot process
+
+					double secInterPktGap = m_new_duration_secs/m_num_input_pkts;
+					double thisPktTs = m_first_pkt_ts_sec + secInterPktGap*(pktIdx+1);
+
+					pktOut.copy(pktIn.header(), pktIn.data());
+					pktOut.set_timestamp_from_seconds(thisPktTs);
+
+					pktWasChangedOut = true;
+				}
+			}
+		}
+		break;
+
+		case PROCMODE_CHANGE_DURATION_PRESERVE_IFG:
+		{
+			if (m_current_pass == 0)
+			{
+				// in the first pass just count the number of packets to process & remember the timestamp of the last packet:
+				m_num_input_pkts++;
+				m_last_pkt_ts_sec = pktIn.pcap_timestamp_to_seconds();
+			}
+			else // second pass
+			{
+				assert(m_new_duration_secs>0);
+				assert(m_num_input_pkts>0);
+				assert(m_last_pkt_ts_sec>0);
+
+				if (pktIdx == 0)
+				{
+					assert(m_first_pkt_ts_sec == 0);
+					m_first_pkt_ts_sec = pktIn.pcap_timestamp_to_seconds();
+
+					printf_verbose("First pkt timestamp is %f and there are %zu pkts; target duration is %f\n", m_first_pkt_ts_sec, m_num_input_pkts, m_new_duration_secs);
+
+					if (m_first_pkt_ts_sec == 0)
+						printf_error("WARNING: invalid timestamp zero (Thursday, 1 January 1970 00:00:00) for the first packet. This is unusual.\n");
+
+					pktWasChangedOut = false; // no proc done, use original packet
+				}
+				else
+				{
+					double originalDuration = m_last_pkt_ts_sec - m_first_pkt_ts_sec; // constant for the whole PCAP of course
+					double pktTsOffsetSincePcapStart = pktIn.pcap_timestamp_to_seconds() - m_first_pkt_ts_sec;
+
+					double newPktOffsetSincePcapStart = pktTsOffsetSincePcapStart * (m_new_duration_secs/originalDuration);
+					double thisPktTs = m_first_pkt_ts_sec + newPktOffsetSincePcapStart;
+
+					//printf_verbose("pkt %u: original ts=%f, currentIFG=%f\n", m_first_pkt_ts_sec, m_num_input_pkts, m_new_duration_secs);
+
+					pktOut.copy(pktIn.header(), pktIn.data());
+					pktOut.set_timestamp_from_seconds(thisPktTs);
+
+					pktWasChangedOut = true;
+				}
+
+				m_previous_pkt_ts_sec = pktIn.pcap_timestamp_to_seconds();
 			}
 		}
 		break;
@@ -205,7 +266,8 @@ bool PacketProcessor::post_processing(unsigned int totNumPkts)
 	switch (m_proc_mode)
 	{
 		case PROCMODE_NONE:
-		case PROCMODE_CHANGE_DURATION:
+		case PROCMODE_CHANGE_DURATION_RESET_IFG:
+		case PROCMODE_CHANGE_DURATION_PRESERVE_IFG:
 			return true; // no error
 
 		case PROCMODE_SET_TIMESTAMPS:

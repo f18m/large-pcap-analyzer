@@ -64,26 +64,27 @@ bool g_termination_requested = false;
 static struct option g_long_options[] = {
 
 	// misc options
-	{"help",              no_argument,       0,  'h' },
-	{"verbose",           no_argument,       0,  'v' },
-	{"quiet",             no_argument,       0,  'q' },
-	{"timing",            no_argument,       0,  't'},
-	{"stats",             no_argument,       0,  'p'},
-	{"append",            no_argument,       0,  'a'},
-	{"write",             required_argument, 0,  'w' },
+	{"help",                           no_argument,       0,  'h' },
+	{"verbose",                        no_argument,       0,  'v' },
+	{"quiet",                          no_argument,       0,  'q' },
+	{"timing",                         no_argument,       0,  't'},
+	{"stats",                          no_argument,       0,  'p'},
+	{"append",                         no_argument,       0,  'a'},
+	{"write",                          required_argument, 0,  'w' },
 
 	// filters
-	{"display-filter",    required_argument, 0,  'Y' },
-	{"inner-filter",      required_argument, 0,  'G' },
-	{"connection-filter", required_argument, 0,  'C' },
-	{"string-filter",     required_argument, 0,  'S' },
-	{"tcp-filter",        required_argument, 0,  'T' },
+	{"display-filter",                 required_argument, 0,  'Y' },
+	{"inner-filter",                   required_argument, 0,  'G' },
+	{"connection-filter",              required_argument, 0,  'C' },
+	{"string-filter",                  required_argument, 0,  'S' },
+	{"tcp-filter",                     required_argument, 0,  'T' },
 
 	// processing options
-	{"set-duration",      required_argument, 0,  'D' },
-	{"set-timestamps-from",required_argument, 0,  's' },
+	{"set-duration",                   required_argument, 0,  'D' },
+	{"set-duration-preserve-IFG",      required_argument, 0,  'd' },
+	{"set-timestamps-from",            required_argument, 0,  's' },
 
-	{0,                   0,                 0,  0 }
+	{0,                                0,                 0,  0 }
 };
 
 #define SHORT_OPTS		"hvqtpaw:Y:G:C:S:T:"
@@ -173,6 +174,9 @@ static void print_help()
 	printf(" --set-duration <HH:MM:SS>\n");
 	printf("                          alters packet timestamps so that the time difference between first and last packet\n");
 	printf("                          matches the given amount of time. All packets in the middle will be equally spaced in time.\n");
+	printf(" --set-duration-preserve-IFG <HH:MM:SS>\n");
+	printf("                          alters packet timestamps so that the time difference between first and last packet\n");
+	printf("                          matches the given amount of time. Interframe gaps (IFG) are scaled accordingly.\n");
 	printf(" --set-timestamps-from <infile.txt>\n");
 	printf("                          alters all packet timestamps using the list of Unix timestamps contained in the given text file;\n");
 	printf("                          the file format is: one line per packet, a single Unix timestamp in seconds (floating point supported)\n");
@@ -644,15 +648,13 @@ static bool process_file(const std::string& infile, const std::string& outfile, 
 			// first pass
 			printf_normal("Packet processing operations require 2 passes: performing first pass\n");
 			unsigned long nFilteredPkts = 0;
-			if (!process_pcap_handle(pcap_handle_in,
-									filterToUse, NULL /* no packet processing this time */,
-									NULL, NULL, &nFilteredPkts))
+			processorcfg->set_pass_index(0);
+			if (!process_pcap_handle(pcap_handle_in, filterToUse, processorcfg, NULL, NULL, &nFilteredPkts))
 				return false;
 
 			if (nFilteredPkts)
 			{
 				printf_normal("Packet processing operations require 2 passes: performing second pass\n");
-				processorcfg->set_num_packets(nFilteredPkts);
 
 				// reopen infile
 				pcap_close(pcap_handle_in);
@@ -663,6 +665,7 @@ static bool process_file(const std::string& infile, const std::string& outfile, 
 				}
 
 				// re-process this time with PROCESSOR and OUTPUT DUMPER active!
+				processorcfg->set_pass_index(1);
 				if (!process_pcap_handle(pcap_handle_in, filterToUse, processorcfg, pcap_dumper, nloadedOUT, nmatchingOUT))
 					return false;
 			}
@@ -703,12 +706,15 @@ int main(int argc, char **argv)
 {
 	int opt;
 	bool append = false;
+	bool preserve_ifg = false;
 	std::string outfile;
 	std::string pcap_filter;
 	std::string pcap_gtpu_filter;
 	std::string extract_filter;
 	std::string search;
-	std::string set_duration;
+	std::string new_duration;
+	std::string set_duration_reset_ifg;
+	std::string set_duration_saving_ifg;
 	std::string set_timestamps;
 	TcpFilterMode valid_tcp_filter_mode = TCP_FILTER_NOT_ACTIVE;
 
@@ -770,7 +776,14 @@ int main(int argc, char **argv)
 
 			// processing options:
 		case 'D':
-			set_duration = optarg;
+			set_duration_reset_ifg = optarg;
+			new_duration = optarg;
+			preserve_ifg = false;
+			break;
+		case 'd':
+			set_duration_saving_ifg = optarg;
+			new_duration = optarg;
+			preserve_ifg = true;
 			break;
 		case 's':
 			set_timestamps = optarg;
@@ -810,18 +823,25 @@ int main(int argc, char **argv)
 		return 1;	// failure
 	}
 
-	bool some_processing_set = !set_duration.empty() || !set_timestamps.empty();
+	bool some_processing_set = !set_duration_reset_ifg.empty() || !set_duration_saving_ifg.empty() || !set_timestamps.empty();
 	if (some_processing_set && outfile.empty())
 	{
 		printf_error("A processing option (--set-duration or --set-timestamps-from) was provided but no output file (-w) was specified... aborting.\n");
 		return 1;	// failure
 	}
 
-	if (valid_tcp_filter_mode != TCP_FILTER_NOT_ACTIVE && !set_duration.empty())
+	if (valid_tcp_filter_mode != TCP_FILTER_NOT_ACTIVE && !set_duration_reset_ifg.empty())
 	{
 		// for implementation simplicity, we don't allow to both TCP filter (which is 2pass filtering)
 		// with duration setting (which is 2pass filtering)
 		printf_error("Both -T and --set-duration were specified: this is not supported.\n");
+		return 1;	// failure
+	}
+	if (valid_tcp_filter_mode != TCP_FILTER_NOT_ACTIVE && !set_duration_saving_ifg.empty())
+	{
+		// for implementation simplicity, we don't allow to both TCP filter (which is 2pass filtering)
+		// with duration setting (which is 2pass filtering)
+		printf_error("Both -T and --set-duration-preserve-IFG were specified: this is not supported.\n");
 		return 1;	// failure
 	}
 
@@ -843,10 +863,14 @@ int main(int argc, char **argv)
 		}
 	}
 
-	if (!set_duration.empty() && !set_timestamps.empty())
+	unsigned int duration_opts_given = 0;
+	if (!set_duration_reset_ifg.empty()) duration_opts_given++;
+	if (!set_duration_saving_ifg.empty()) duration_opts_given++;
+	if (!set_timestamps.empty()) duration_opts_given++;
+	if (duration_opts_given > 1)
 	{
 		// either we compress all timestamps with given duration or rather we set all packet timestamps using input file, not both!
-		fprintf(stderr, "Both --set-duration and --set-timestamps-from were specified: this is not supported.\n");
+		fprintf(stderr, "Both --set-duration and/or --set-timestamps-from and/or --set-duration-preserve-IFG were specified: this is not supported.\n");
 		return 1;	// failure
 	}
 
@@ -876,7 +900,7 @@ int main(int argc, char **argv)
 
 
 	PacketProcessor processor;
-	if (!processor.prepare_processor(set_duration, set_timestamps))
+	if (!processor.prepare_processor(new_duration, preserve_ifg, set_timestamps))
 	{
 		// error was already logged
 		return 1;
