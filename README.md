@@ -233,10 +233,10 @@ Note that to load, search and extract packets from a 5.6GB PCAP only 4.5secs wer
 This translates to a processing throughput of about 1GB/sec (in this mode).
 
 
-# Example run 6: set PCAP duration
+# Example run 6: set PCAP duration resetting IFG
 
 In this example a PCAP that would take 8 minutes to be replayed (without top speed option) will be
-modified to take just 1.2 seconds to replay:
+modified to take just 1.2 seconds to replay.
 
 ```
 $ large_pcap_analyzer --timing test-pcaps/ipv4_gtpu_https.pcap
@@ -259,7 +259,48 @@ Last packet has a timestamp offset = 1.20sec = 0.02min = 0.00hours
 Tcpreplay should replay this PCAP at an average of 105.00Mbps / 15167.50pps to respect PCAP timings.
 ```
 
-# Example run 7: change PCAP timestamps
+Note that using `--set-duration` all timestamps in the resulting PCAP will have an equal inter-frame-gap (IFG). 
+In other words the original IFGs will be lost.
+
+
+# Example run 7: set PCAP duration preserving IFG
+
+Repeating example #6 using `--set-duration-preserve-ifg` instead of `--set-duration` will give the same
+result as far as the total PCAP duration is concerned, but the ratio between the new PCAP IFGs and the original
+PCAP IFGs will be preserved.
+To better explain the result of the processing consider the following table where the original PCAP duration
+is scaled down by a factor of 10 using `--set-duration-preserve-ifg`:
+
+| Frame index | Frame relative time in original PCAP | Frame relative time in output PCAP |
+|-------------|--------------------------------------|------------------------------------|
+| 1           | +0.0                                 | +0.0                               |
+| 2           | +1.0                                 | +0.1                               |
+| 3           | +15.0                                | +1.5                               |
+| 4           | +16.0                                | +1.6                               |
+
+As you can see the inter-frame-gaps (IFGs) among the packets are preserved: the packet #4 in the original PCAP
+has a timestamp difference from packet #1 equal to 16secs that become 1.6secs in the rescaled PCAP.
+The same ratio is found considering the timestamp difference between packet #4 and packet #3: it is 1sec in
+the original PCAP and 0.1sec in the rescaled output PCAP.
+
+```
+$ large_pcap_analyzer --set-duration-preserve-ifg 1.2 --write /tmp/test.pcap test-pcaps/ipv4_gtpu_https.pcap 
+PCAP duration will be set to: 1.200000 secs
+Successfully opened output PCAP '/tmp/test.pcap'
+Packet processing operations require 2 passes: performing first pass
+0M packets (18201 packets) were loaded from PCAP.
+Packet processing operations require 2 passes: performing second pass
+0M packets (18201 packets) were loaded from PCAP.
+0M packets (18201 packets) were processed and saved into output PCAP.
+
+$ large_pcap_analyzer --timing /tmp/test.pcap 
+0M packets (18201 packets) were loaded from PCAP.
+Last packet has a timestamp offset = 1.20sec = 0.02min = 0.00hours
+Tcpreplay should replay this PCAP at an average of 105.00Mbps / 15167.50pps to respect PCAP timings.
+```
+
+
+# Example run 8: change PCAP timestamps
 
 In this example the timestamps of 2 packets are manually tweaked.
 First of all current timestamps are extracted using a tool like [tshark](https://www.wireshark.org/docs/man-pages/tshark.html),

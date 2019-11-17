@@ -794,7 +794,7 @@ int main(int argc, char **argv)
 
 		case '?':
 			{
-				if (optopt == 'w' || optopt == 'Y' || optopt == 'G' || optopt == 's')
+				if (optopt == 'w' || optopt == 'Y' || optopt == 'G' || optopt == 's' || optopt == 'D'  || optopt == 'd')
 					printf_error("Option -%c requires an argument.\n", optopt);
 				else if (isprint (optopt))
 					printf_error("Unknown option `-%c'.\n", optopt);

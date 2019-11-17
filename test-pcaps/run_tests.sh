@@ -38,7 +38,26 @@ function assert_files_match()
 
     cmp --silent "$FILE_UNDER_TEST" "$FILE_EXPECTED"
     if [ $? -ne 0 ]; then
-        echo "large_pcap_analyzer and $EXPECTED_PRODUCED_BY produced different outputs"
+        echo "large_pcap_analyzer and $EXPECTED_PRODUCED_BY produced different outputs: compare $FILE_UNDER_TEST and $FILE_EXPECTED"
+        exit 2
+    fi
+}
+
+function assert_floatingpoint_numbers_match()
+{
+    local VALUE="$1"
+    local EXPECTED="$2"
+    local ABS_TOLERANCE="${3:-0}"
+
+    local DIFF1="$(echo "$VALUE - $EXPECTED" | bc -l)"
+    if [ "$(echo "$DIFF1 <= $ABS_TOLERANCE" | bc -l)" != "1" ] ; then
+        echo "Expecting [$EXPECTED] but found instead [$VALUE]. Their difference is bigger than the tolerance [$ABS_TOLERANCE]. Aborting."
+        exit 2
+    fi
+
+    local DIFF2="$(echo "$EXPECTED - $VALUE" | bc -l)"
+    if [ "$(echo "$DIFF2 <= $ABS_TOLERANCE" | bc -l)" != "1" ] ; then
+        echo "Expecting [$EXPECTED] but found instead [$VALUE]. Their difference is bigger than the tolerance [$ABS_TOLERANCE]. Aborting."
         exit 2
     fi
 }
@@ -143,7 +162,7 @@ function test_gtpu_filter()
     tshark_dissect_opt[5]="-o ip.defragment:FALSE"     # this is needed or otherwise tshark will save into output reassembled IP packets!
 
 
-    rm /tmp/filter*.pcap
+    rm -f /tmp/filter*.pcap
     for testnum in $(seq 1 5); do
         $lpa_binary -w /tmp/filter${testnum}-lpa.pcap -G "${pcap_filter[testnum]}" ${test_file[testnum]} >/dev/null
         if [ $? -ne 0 ]; then echo "Failed test of PCAP filter (-G option)" ; exit 1 ; fi
@@ -167,7 +186,7 @@ function test_extract_conn_filter()
     tshark_filter[1]="ip.addr==10.85.73.237 && tcp.port==49789 && ip.addr==202.122.145.141 && tcp.port==443"
     tshark_dissect_opt[1]=""
 
-    rm /tmp/filter*.pcap
+    rm -f /tmp/filter*.pcap
     for testopt in $(seq 1 2); do
 
         local option="-G"
@@ -212,7 +231,7 @@ function test_tcp_filter()
     tcp_filter[4]="full3way-data"
     tshark_filter[4]="tcp.stream eq 1000"			# this is just a non-existing TCP flow: the output must be empty
 
-    rm /tmp/filter*.pcap
+    rm -f /tmp/filter*.pcap
     for testopt in $(seq 1 2); do
 
         local option="-T"
@@ -255,7 +274,7 @@ function test_set_duration()
 
     # in this test we assume that --timing option of LPA works correctly...
 
-    rm /tmp/filter*.pcap
+    rm -f /tmp/filter*.pcap
     for testnum in $(seq 1 3); do
         $lpa_binary -w /tmp/filter${testnum}-lpa.pcap --set-duration "${test_duration[testnum]}" ${test_file[testnum]} >/dev/null
         if [ $? -ne 0 ]; then echo "Failed test of --set-duration option" ; exit 1 ; fi
@@ -263,6 +282,65 @@ function test_set_duration()
         # now validate against the --timing option
         local new_duration="$($lpa_binary -q --timing /tmp/filter${testnum}-lpa.pcap)"
         assert_strings_match "$new_duration" "${expected_timing_output[testnum]}"
+
+        echo "  ... testcase #$testnum passed."
+    done
+}
+
+function test_set_duration_preserve_ifg()
+{
+    echo "Testing --set-duration-preserve-IFG option..."
+
+    # original duration is 60sec
+    test_file[1]="timing-test.pcap"
+    test_scale_factor[1]="10"
+
+    # original duration is 18.3sec
+    test_file[2]="ipv4_ftp.pcap"
+    test_scale_factor[2]="5"
+
+    local -r ts_tolerance_sec="0.0001"
+
+    # in this test we assume that --timing option of LPA works correctly...
+
+    rm -f /tmp/filter*.pcap /tmp/pkts-timings-*
+    for testnum in $(seq 1 2); do
+
+        # first of all acquire current duration:
+        local curr_duration="$($lpa_binary -q --timing ${test_file[testnum]})"
+
+        # compute new duration:
+        local new_duration_computed="$( echo $curr_duration / ${test_scale_factor[testnum]} | bc -l )"
+
+        # run --set-duration-preserve-IFG
+        $lpa_binary -w /tmp/filter${testnum}-lpa.pcap --set-duration-preserve-IFG "$new_duration_computed" ${test_file[testnum]} >/dev/null
+        if [ $? -ne 0 ]; then echo "Failed test of --set-duration-preserve-IFG option" ; exit 1 ; fi
+
+        # now validate against the --timing option
+        local new_duration="$($lpa_binary -q --timing /tmp/filter${testnum}-lpa.pcap)"
+        assert_floatingpoint_numbers_match "$new_duration" "$new_duration_computed"
+
+        # extract all pkt timestamps from the ORIGINAL pcap:
+        $tshark_binary -F pcap -r ${test_file[testnum]} -Tfields -e frame.time_relative >/tmp/pkts-timings-original-${testnum}.txt 2>/dev/null
+        if [ $? -ne 0 ]; then echo "Failed test of --set-duration-preserve-IFG option" ; exit 1 ; fi
+
+        # extract all pkt timestamps from the PROCESSED pcap:
+        $tshark_binary -F pcap -r /tmp/filter${testnum}-lpa.pcap -Tfields -e frame.time_relative >/tmp/pkts-timings-scaled-${testnum}.txt 2>/dev/null
+        if [ $? -ne 0 ]; then echo "Failed test of --set-duration-preserve-IFG option" ; exit 1 ; fi
+
+        local npkts1="$(wc -l /tmp/pkts-timings-original-${testnum}.txt | cut -f1 -d' ')"
+        local npkts2="$(wc -l /tmp/pkts-timings-scaled-${testnum}.txt | cut -f1 -d' ')"
+        assert_strings_match "$npkts1" "$npkts2"
+
+        # process each timestamp
+        for pktIdx in $(seq 1 $npkts1); do
+            local orig_ts="$(sed ${pktIdx}q\;d /tmp/pkts-timings-original-${testnum}.txt)"
+            local scaled_ts="$(sed ${pktIdx}q\;d /tmp/pkts-timings-scaled-${testnum}.txt)"
+
+            #echo "$orig_ts -> $scaled_ts"
+            local rescaled_ts="$( echo "$scaled_ts * ${test_scale_factor[testnum]}" | bc -l )"
+            assert_floatingpoint_numbers_match "$orig_ts" "$rescaled_ts" "$ts_tolerance_sec"
+        done
 
         echo "  ... testcase #$testnum passed."
     done
@@ -285,7 +363,7 @@ function test_set_timestamps()
 
     # in this test we assume that --timing option of LPA works correctly...
 
-    rm /tmp/filter*.pcap
+    rm -f /tmp/filter*.pcap /tmp/pkts-timings-*
     for testnum in $(seq 1 2); do
         $lpa_binary -w /tmp/filter${testnum}-lpa.pcap --set-timestamps-from "${test_input_timestamps[testnum]}" ${test_file[testnum]} >/dev/null
         if [ $? -ne 0 ]; then echo "Failed test of --set-timestamps-from option" ; exit 1 ; fi
@@ -346,6 +424,7 @@ test_gtpu_filter
 test_extract_conn_filter
 test_tcp_filter
 test_set_duration
+test_set_duration_preserve_ifg
 test_set_timestamps
 echo "All tests passed successfully"
 
