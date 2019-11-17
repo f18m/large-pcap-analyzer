@@ -295,16 +295,20 @@ function test_set_duration_preserve_ifg()
     test_file[1]="timing-test.pcap"
     test_scale_factor[1]="10"
 
-    # original duration is 18.3sec
-    test_file[2]="ipv4_ftp.pcap"
+    # original duration is 60sec
+    test_file[2]="timing-test.pcap"
     test_scale_factor[2]="5"
+
+    # original duration is 60sec
+    test_file[3]="timing-test.pcap"
+    test_scale_factor[3]="1"
 
     local -r ts_tolerance_sec="0.0001"
 
     # in this test we assume that --timing option of LPA works correctly...
 
     rm -f /tmp/filter*.pcap /tmp/pkts-timings-*
-    for testnum in $(seq 1 2); do
+    for testnum in $(seq 1 3); do
 
         # first of all acquire current duration:
         local curr_duration="$($lpa_binary -q --timing ${test_file[testnum]})"
