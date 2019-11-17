@@ -17,6 +17,21 @@ Some features of this utility:
 5. Change PCAP duration, changing the timestamp inside each packet.
 
 
+# Table of Contents
+
+* [How to install](#how-to-install)
+* [Command line help](#command-line-help)
+* [Example run 1: time analysis](#example-run-1-time-analysis)
+* [Example run 2: raw search](#example-run-2-raw-search)
+* [Example run 3: tcpdump-like](#example-run-3-tcpdump-like)
+* [Example run 4: GTPu filtering](#example-run-4-gtpu-filtering)
+* [Example run 5: valid TCP stream filtering](#example-run-5-valid-tcp-stream-filtering)
+* [Example run 6: set PCAP duration resetting IFG](#example-run-6-set-pcap-duration-resetting-ifg)
+* [Example run 7: set PCAP duration preserving IFG](#example-run-7-set-pcap-duration-preserving-ifg)
+* [Example run 8: change PCAP timestamps](#example-run-8-change-pcap-timestamps)
+
+
+
 # How to install
 
 As for most Linux software, you can install the software just running:
