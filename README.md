@@ -37,9 +37,9 @@ Some features of this utility:
 As for most Linux software, you can install the software just running:
 
 ```
-	$ wget https://github.com/f18m/large-pcap-analyzer/archive/3.6.0.tar.gz
-	$ tar xvzf 3.6.0.tar.gz
-	$ cd large-pcap-analyzer-3.6.0/
+	$ wget https://github.com/f18m/large-pcap-analyzer/archive/3.7.0.tar.gz
+	$ tar xvzf 3.7.0.tar.gz
+	$ cd large-pcap-analyzer-3.7.0/
 	$ ./configure && make
 	$ sudo make install
 ```
