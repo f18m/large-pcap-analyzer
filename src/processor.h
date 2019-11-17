@@ -44,7 +44,8 @@
 enum AlternativeProcessingModes
 {
 	PROCMODE_NONE,
-	PROCMODE_CHANGE_DURATION,
+	PROCMODE_CHANGE_DURATION_RESET_IFG,
+	PROCMODE_CHANGE_DURATION_PRESERVE_IFG,
 	PROCMODE_SET_TIMESTAMPS
 };
 
@@ -59,15 +60,18 @@ public:
 	PacketProcessor()
 	{
 		m_proc_mode = PROCMODE_NONE;
-		m_duration_secs = 0;
+		m_new_duration_secs = 0;
 		m_first_pkt_ts_sec = 0;
+		m_last_pkt_ts_sec = 0;
+		m_previous_pkt_ts_sec = 0;
 		m_num_input_pkts = 0;
+		m_current_pass = 0;
 	}
 
 	~PacketProcessor()
 	{
 	}
-	bool prepare_processor(const std::string& set_duration, const std::string& timestamp_file);
+	bool prepare_processor(const std::string& set_duration, bool preserve_ifg, const std::string& timestamp_file);
 
 	bool is_some_processing_active() const
 		{ return m_proc_mode != PROCMODE_NONE; }
@@ -75,11 +79,12 @@ public:
 	// to compute correctly the timestamps in --set-duration mode, we need 2 passes: first to find out how many
 	// packets are present in the PCAP and then to actually alter timestamps:
 	bool needs_2passes() const
-		{ return m_proc_mode == PROCMODE_CHANGE_DURATION; }
+		{ return m_proc_mode == PROCMODE_CHANGE_DURATION_RESET_IFG || m_proc_mode == PROCMODE_CHANGE_DURATION_PRESERVE_IFG; }
 
-	// used at the end of 1st pass:
-	void set_num_packets(unsigned long npkts)
-		{ m_num_input_pkts = npkts; }
+	void set_pass_index(unsigned int passIdx)
+	{
+		m_current_pass = passIdx;
+	}
 
 	// returns true if the processing is successful or false if it should be aborted.
 	// NOTE: pktWasChanged will be set to true if output packet has been filled or false if no action
@@ -91,12 +96,16 @@ public:
 private:
 	// configuration:
 	AlternativeProcessingModes m_proc_mode;
-	double m_duration_secs;
+	double m_new_duration_secs;
 	std::vector<double> m_timestamps;
 	std::string m_timestamps_input_file;
+	unsigned int m_current_pass;	// 0 or 1
 
 	// status:
 	double m_first_pkt_ts_sec;
+	double m_last_pkt_ts_sec;
+
+	double m_previous_pkt_ts_sec;
 	unsigned long m_num_input_pkts;
 };
 

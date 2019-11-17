@@ -17,14 +17,29 @@ Some features of this utility:
 5. Change PCAP duration, changing the timestamp inside each packet.
 
 
+# Table of Contents
+
+* [How to install](#how-to-install)
+* [Command line help](#command-line-help)
+* [Example run 1: time analysis](#example-run-1-time-analysis)
+* [Example run 2: raw search](#example-run-2-raw-search)
+* [Example run 3: tcpdump-like](#example-run-3-tcpdump-like)
+* [Example run 4: GTPu filtering](#example-run-4-gtpu-filtering)
+* [Example run 5: valid TCP stream filtering](#example-run-5-valid-tcp-stream-filtering)
+* [Example run 6: set PCAP duration resetting IFG](#example-run-6-set-pcap-duration-resetting-ifg)
+* [Example run 7: set PCAP duration preserving IFG](#example-run-7-set-pcap-duration-preserving-ifg)
+* [Example run 8: change PCAP timestamps](#example-run-8-change-pcap-timestamps)
+
+
+
 # How to install
 
 As for most Linux software, you can install the software just running:
 
 ```
-	$ wget https://github.com/f18m/large-pcap-analyzer/archive/3.6.0.tar.gz
-	$ tar xvzf 3.6.0.tar.gz
-	$ cd large-pcap-analyzer-3.6.0/
+	$ wget https://github.com/f18m/large-pcap-analyzer/archive/3.7.0.tar.gz
+	$ tar xvzf 3.7.0.tar.gz
+	$ cd large-pcap-analyzer-3.7.0/
 	$ ./configure && make
 	$ sudo make install
 ```
@@ -42,7 +57,7 @@ For developers: link to [Snapcraft page for large PCAP analyzer](https://build.s
 # Command line help
 
 ```
-	large-pcap-analyzer version 3.6.0
+	large-pcap-analyzer version 3.7.0
 	by Francesco Montorsi, (c) 2014-2019
 	Usage:
 	  large-pcap-analyzer [options] somefile.pcap ...
@@ -55,7 +70,7 @@ For developers: link to [Snapcraft page for large PCAP analyzer](https://build.s
 	 -a,--append              open output file in APPEND mode instead of TRUNCATE
 	 -w <outfile.pcap>, --write <outfile.pcap>
 	                          where to save the PCAP containing the results of filtering/processing
-	Filtering options (to select packets to save in outfile.pcap):
+	Filtering options (i.e., options to select the packets to save in outfile.pcap):
 	 -Y <tcpdump_filter>, --display-filter <tcpdump_filter>
 	                          the PCAP filter to apply on packets (will be applied on outer IP frames for GTPu pkts)
 	 -G <gtpu_tcpdump_filter>, --inner-filter <gtpu_tcpdump_filter>
@@ -69,16 +84,19 @@ For developers: link to [Snapcraft page for large PCAP analyzer](https://build.s
 	                            -T syn: at least 1 SYN packet
 	                            -T full3way: the full 3way handshake
 	                            -T full3way-data: the full 3way handshake and data packets
-	Processing options (changes that will be done on packets selected for output):
+	Processing options (i.e., options that will change packets saved in outfile.pcap):
 	 --set-duration <HH:MM:SS>
 	                          alters packet timestamps so that the time difference between first and last packet
 	                          matches the given amount of time. All packets in the middle will be equally spaced in time.
+	 --set-duration-preserve-IFG <HH:MM:SS>
+	                          alters packet timestamps so that the time difference between first and last packet
+	                          matches the given amount of time. Interframe gaps (IFG) are scaled accordingly.
 	 --set-timestamps-from <infile.txt>
 	                          alters all packet timestamps using the list of Unix timestamps contained in the given text file;
 	                          the file format is: one line per packet, a single Unix timestamp in seconds (floating point supported)
 	                          per line; the number of lines must match exactly the number of packets of the filtered input PCAP.
 	Inputs:
-	 somefile.pcap            the large PCAP trace to analyze (you can provide more than 1 file)
+	 somefile.pcap            the large PCAP trace to analyze; more than 1 file can be specified.
 	
 	Note that the -Y and -G options accept filters expressed in tcpdump/pcap_filters syntax.
 	See http://www.manpagez.com/man/7/pcap-filter/ for more info.
@@ -233,10 +251,22 @@ Note that to load, search and extract packets from a 5.6GB PCAP only 4.5secs wer
 This translates to a processing throughput of about 1GB/sec (in this mode).
 
 
-# Example run 6: set PCAP duration
+# Example run 6: set PCAP duration resetting IFG
 
 In this example a PCAP that would take 8 minutes to be replayed (without top speed option) will be
-modified to take just 1.2 seconds to replay:
+modified to take just 1.2 seconds to replay.
+To better explain the result of the processing consider the following table where the original PCAP duration
+is reset from 20secs down to 10secs using `--set-duration` option:
+
+| Frame index | Frame relative time in original PCAP | Frame relative time in output PCAP |
+|-------------|--------------------------------------|------------------------------------|
+| 1           | +0.0                                 | +0.0                               |
+| 2           | +1.0                                 | +2.5                               |
+| 3           | +15.0                                | +5.0                               |
+| 4           | +18.0                                | +7.5                               |
+| 5           | +20.0                                | +10.0                              |
+
+See the following example session:
 
 ```
 $ large_pcap_analyzer --timing test-pcaps/ipv4_gtpu_https.pcap
@@ -259,7 +289,48 @@ Last packet has a timestamp offset = 1.20sec = 0.02min = 0.00hours
 Tcpreplay should replay this PCAP at an average of 105.00Mbps / 15167.50pps to respect PCAP timings.
 ```
 
-# Example run 7: change PCAP timestamps
+Note that using `--set-duration` all timestamps in the resulting PCAP will have an equal inter-frame-gap (IFG). 
+In other words the original IFGs will be lost.
+
+
+# Example run 7: set PCAP duration preserving IFG
+
+Repeating example #6 using `--set-duration-preserve-ifg` instead of `--set-duration` will give the same
+result as far as the total PCAP duration is concerned, but the ratio between the new PCAP IFGs and the original
+PCAP IFGs will be preserved.
+To better explain the result of the processing consider the following table where the original PCAP duration
+is scaled down by a factor of 10 using `--set-duration-preserve-ifg`:
+
+| Frame index | Frame relative time in original PCAP | Frame relative time in output PCAP |
+|-------------|--------------------------------------|------------------------------------|
+| 1           | +0.0                                 | +0.0                               |
+| 2           | +1.0                                 | +0.1                               |
+| 3           | +15.0                                | +1.5                               |
+| 4           | +16.0                                | +1.6                               |
+
+As you can see the inter-frame-gaps (IFGs) among the packets are preserved: the packet #4 in the original PCAP
+has a timestamp difference from packet #1 equal to 16secs that become 1.6secs in the rescaled PCAP.
+The same ratio is found considering the timestamp difference between packet #4 and packet #3: it is 1sec in
+the original PCAP and 0.1sec in the rescaled output PCAP.
+
+```
+$ large_pcap_analyzer --set-duration-preserve-ifg 1.2 --write /tmp/test.pcap test-pcaps/ipv4_gtpu_https.pcap 
+PCAP duration will be set to: 1.200000 secs
+Successfully opened output PCAP '/tmp/test.pcap'
+Packet processing operations require 2 passes: performing first pass
+0M packets (18201 packets) were loaded from PCAP.
+Packet processing operations require 2 passes: performing second pass
+0M packets (18201 packets) were loaded from PCAP.
+0M packets (18201 packets) were processed and saved into output PCAP.
+
+$ large_pcap_analyzer --timing /tmp/test.pcap 
+0M packets (18201 packets) were loaded from PCAP.
+Last packet has a timestamp offset = 1.20sec = 0.02min = 0.00hours
+Tcpreplay should replay this PCAP at an average of 105.00Mbps / 15167.50pps to respect PCAP timings.
+```
+
+
+# Example run 8: change PCAP timestamps
 
 In this example the timestamps of 2 packets are manually tweaked.
 First of all current timestamps are extracted using a tool like [tshark](https://www.wireshark.org/docs/man-pages/tshark.html),
