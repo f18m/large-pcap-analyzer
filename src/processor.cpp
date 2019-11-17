@@ -153,44 +153,6 @@ bool PacketProcessor::process_packet(const Packet& pktIn, Packet& pktOut, unsign
 		break;
 
 		case PROCMODE_CHANGE_DURATION_RESET_IFG:
-		{
-			if (m_current_pass == 0)
-			{
-				// in the first pass just count the number of packets to process:
-				m_num_input_pkts++;
-			}
-			else // second pass
-			{
-				assert(m_new_duration_secs>0);
-				assert(m_num_input_pkts>0);
-
-				if (pktIdx == 0)
-				{
-					assert(m_first_pkt_ts_sec == 0);
-					m_first_pkt_ts_sec = pktIn.pcap_timestamp_to_seconds();
-
-					if (m_first_pkt_ts_sec == 0)
-						printf_error("WARNING: invalid timestamp zero (Thursday, 1 January 1970 00:00:00) for the first packet. This is unusual.\n");
-
-					pktWasChangedOut = false; // no proc done, use original packet
-				}
-				else
-				{
-					//if (m_first_pkt_ts_sec == 0)
-						//return false; // cannot process
-
-					double secInterPktGap = m_new_duration_secs/m_num_input_pkts;
-					double thisPktTs = m_first_pkt_ts_sec + secInterPktGap*(pktIdx+1);
-
-					pktOut.copy(pktIn.header(), pktIn.data());
-					pktOut.set_timestamp_from_seconds(thisPktTs);
-
-					pktWasChangedOut = true;
-				}
-			}
-		}
-		break;
-
 		case PROCMODE_CHANGE_DURATION_PRESERVE_IFG:
 		{
 			if (m_current_pass == 0)
@@ -219,17 +181,26 @@ bool PacketProcessor::process_packet(const Packet& pktIn, Packet& pktOut, unsign
 				}
 				else
 				{
-					double originalDuration = m_last_pkt_ts_sec - m_first_pkt_ts_sec; // constant for the whole PCAP of course
-					double pktTsOffsetSincePcapStart = pktIn.pcap_timestamp_to_seconds() - m_first_pkt_ts_sec;
+					double thisPktTs = 0;
 
-					double newPktOffsetSincePcapStart = pktTsOffsetSincePcapStart * (m_new_duration_secs/originalDuration);
-					double thisPktTs = m_first_pkt_ts_sec + newPktOffsetSincePcapStart;
+					if (m_proc_mode == PROCMODE_CHANGE_DURATION_RESET_IFG)
+					{
+						double secInterPktGap = m_new_duration_secs/m_num_input_pkts;
+						thisPktTs = m_first_pkt_ts_sec + secInterPktGap*(pktIdx+1);
+					}
+					else // PROCMODE_CHANGE_DURATION_PRESERVE_IFG
+					{
+						double originalDuration = m_last_pkt_ts_sec - m_first_pkt_ts_sec; // constant for the whole PCAP of course
+						double pktTsOffsetSincePcapStart = pktIn.pcap_timestamp_to_seconds() - m_first_pkt_ts_sec;
 
-					//printf_verbose("pkt %u: original ts=%f, currentIFG=%f\n", m_first_pkt_ts_sec, m_num_input_pkts, m_new_duration_secs);
+						double newPktOffsetSincePcapStart = pktTsOffsetSincePcapStart * (m_new_duration_secs/originalDuration);
+						thisPktTs = m_first_pkt_ts_sec + newPktOffsetSincePcapStart;
+
+						//printf_verbose("pkt %u: original ts=%f, currentIFG=%f\n", m_first_pkt_ts_sec, m_num_input_pkts, m_new_duration_secs);
+					}
 
 					pktOut.copy(pktIn.header(), pktIn.data());
 					pktOut.set_timestamp_from_seconds(thisPktTs);
-
 					pktWasChangedOut = true;
 				}
 

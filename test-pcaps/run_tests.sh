@@ -76,6 +76,10 @@ function find_dependencies_or_die()
         echo "Cannot find the tshark executable!"
         exit 40
     fi
+
+    echo "For testing using: $lpa_binary"
+    echo "For testing using: $tcpdump_binary"
+    echo "For testing using: $tshark_binary"
 }
 
 ####################################################################
@@ -289,7 +293,7 @@ function test_set_duration()
 
 function test_set_duration_preserve_ifg()
 {
-    echo "Testing --set-duration-preserve-IFG option..."
+    echo "Testing --set-duration-preserve-ifg option..."
 
     # original duration is 60sec
     test_file[1]="timing-test.pcap"
@@ -316,9 +320,9 @@ function test_set_duration_preserve_ifg()
         # compute new duration:
         local new_duration_computed="$( echo $curr_duration / ${test_scale_factor[testnum]} | bc -l )"
 
-        # run --set-duration-preserve-IFG
-        $lpa_binary -w /tmp/filter${testnum}-lpa.pcap --set-duration-preserve-IFG "$new_duration_computed" ${test_file[testnum]} >/dev/null
-        if [ $? -ne 0 ]; then echo "Failed test of --set-duration-preserve-IFG option" ; exit 1 ; fi
+        # run --set-duration-preserve-ifg
+        $lpa_binary -w /tmp/filter${testnum}-lpa.pcap --set-duration-preserve-ifg "$new_duration_computed" ${test_file[testnum]} >/dev/null
+        if [ $? -ne 0 ]; then echo "Failed test of --set-duration-preserve-ifg option" ; exit 1 ; fi
 
         # now validate against the --timing option
         local new_duration="$($lpa_binary -q --timing /tmp/filter${testnum}-lpa.pcap)"
@@ -326,11 +330,11 @@ function test_set_duration_preserve_ifg()
 
         # extract all pkt timestamps from the ORIGINAL pcap:
         $tshark_binary -F pcap -r ${test_file[testnum]} -Tfields -e frame.time_relative >/tmp/pkts-timings-original-${testnum}.txt 2>/dev/null
-        if [ $? -ne 0 ]; then echo "Failed test of --set-duration-preserve-IFG option" ; exit 1 ; fi
+        if [ $? -ne 0 ]; then echo "Failed test of --set-duration-preserve-ifg option" ; exit 1 ; fi
 
         # extract all pkt timestamps from the PROCESSED pcap:
         $tshark_binary -F pcap -r /tmp/filter${testnum}-lpa.pcap -Tfields -e frame.time_relative >/tmp/pkts-timings-scaled-${testnum}.txt 2>/dev/null
-        if [ $? -ne 0 ]; then echo "Failed test of --set-duration-preserve-IFG option" ; exit 1 ; fi
+        if [ $? -ne 0 ]; then echo "Failed test of --set-duration-preserve-ifg option" ; exit 1 ; fi
 
         local npkts1="$(wc -l /tmp/pkts-timings-original-${testnum}.txt | cut -f1 -d' ')"
         local npkts2="$(wc -l /tmp/pkts-timings-scaled-${testnum}.txt | cut -f1 -d' ')"
