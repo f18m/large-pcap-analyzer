@@ -57,7 +57,7 @@ For developers: link to [Snapcraft page for large PCAP analyzer](https://build.s
 # Command line help
 
 ```
-	large-pcap-analyzer version 3.6.0
+	large-pcap-analyzer version 3.7.0
 	by Francesco Montorsi, (c) 2014-2019
 	Usage:
 	  large-pcap-analyzer [options] somefile.pcap ...
@@ -70,7 +70,7 @@ For developers: link to [Snapcraft page for large PCAP analyzer](https://build.s
 	 -a,--append              open output file in APPEND mode instead of TRUNCATE
 	 -w <outfile.pcap>, --write <outfile.pcap>
 	                          where to save the PCAP containing the results of filtering/processing
-	Filtering options (to select packets to save in outfile.pcap):
+	Filtering options (i.e., options to select the packets to save in outfile.pcap):
 	 -Y <tcpdump_filter>, --display-filter <tcpdump_filter>
 	                          the PCAP filter to apply on packets (will be applied on outer IP frames for GTPu pkts)
 	 -G <gtpu_tcpdump_filter>, --inner-filter <gtpu_tcpdump_filter>
@@ -84,16 +84,19 @@ For developers: link to [Snapcraft page for large PCAP analyzer](https://build.s
 	                            -T syn: at least 1 SYN packet
 	                            -T full3way: the full 3way handshake
 	                            -T full3way-data: the full 3way handshake and data packets
-	Processing options (changes that will be done on packets selected for output):
+	Processing options (i.e., options that will change packets saved in outfile.pcap):
 	 --set-duration <HH:MM:SS>
 	                          alters packet timestamps so that the time difference between first and last packet
 	                          matches the given amount of time. All packets in the middle will be equally spaced in time.
+	 --set-duration-preserve-IFG <HH:MM:SS>
+	                          alters packet timestamps so that the time difference between first and last packet
+	                          matches the given amount of time. Interframe gaps (IFG) are scaled accordingly.
 	 --set-timestamps-from <infile.txt>
 	                          alters all packet timestamps using the list of Unix timestamps contained in the given text file;
 	                          the file format is: one line per packet, a single Unix timestamp in seconds (floating point supported)
 	                          per line; the number of lines must match exactly the number of packets of the filtered input PCAP.
 	Inputs:
-	 somefile.pcap            the large PCAP trace to analyze (you can provide more than 1 file)
+	 somefile.pcap            the large PCAP trace to analyze; more than 1 file can be specified.
 	
 	Note that the -Y and -G options accept filters expressed in tcpdump/pcap_filters syntax.
 	See http://www.manpagez.com/man/7/pcap-filter/ for more info.
@@ -252,6 +255,18 @@ This translates to a processing throughput of about 1GB/sec (in this mode).
 
 In this example a PCAP that would take 8 minutes to be replayed (without top speed option) will be
 modified to take just 1.2 seconds to replay.
+To better explain the result of the processing consider the following table where the original PCAP duration
+is reset from 20secs down to 10secs using `--set-duration` option:
+
+| Frame index | Frame relative time in original PCAP | Frame relative time in output PCAP |
+|-------------|--------------------------------------|------------------------------------|
+| 1           | +0.0                                 | +0.0                               |
+| 2           | +1.0                                 | +2.5                               |
+| 3           | +15.0                                | +5.0                               |
+| 4           | +18.0                                | +7.5                               |
+| 5           | +20.0                                | +10.0                              |
+
+See the following example session:
 
 ```
 $ large_pcap_analyzer --timing test-pcaps/ipv4_gtpu_https.pcap
