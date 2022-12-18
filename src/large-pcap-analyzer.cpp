@@ -502,7 +502,7 @@ static bool process_pcap_handle(pcap_t* pcap_handle_in,
 
     if (g_timestamp_analysis) {
         if (!Packet::pcap_timestamp_is_valid(&first_pcap_header) && !Packet::pcap_timestamp_is_valid(&last_pcap_header)) {
-            printf_normal("Apparently the packets of the PCAP have no valid timestamp for first and last packet... cannot compute PCAP duration.\n");
+            printf_normal("Apparently both the first and last packet packets of the PCAP have no valid timestamp... cannot compute PCAP duration.\n");
             return false;
         }
 
