@@ -30,7 +30,7 @@
 //------------------------------------------------------------------------------
 
 #ifndef _GNU_SOURCE
-#define _GNU_SOURCE         // to have memmem
+#define _GNU_SOURCE // to have memmem
 #endif
 
 #include <stdint.h>
@@ -53,90 +53,89 @@
 #include "config.h"
 #include <map>
 
-
 //------------------------------------------------------------------------------
 // Constants
 //------------------------------------------------------------------------------
 
-#define KB								(1024)
-#define MB								(1024*1024)
-#define GB								(1024*1024*1024)
-#define MILLION							(1000000)
-#define SMALL_NUM						(0.000001)           // 1us
-#define MAX_SNAPLEN						(65535)
-#define VLAN_VID_MASK					(0x0FFF)
-#define ETHERTYPE_IS_VLAN(x)			((x) == ETH_P_8021Q || (x) == 0x9100/*qinq*/ || (x) == 0x88A8 /*802.1 ad*/)
-#define INVALID_FLOW_HASH				(0)
+#define KB (1024)
+#define MB (1024 * 1024)
+#define GB (1024 * 1024 * 1024)
+#define MILLION (1000000)
+#define SMALL_NUM (0.000001) // 1us
+#define MAX_SNAPLEN (65535)
+#define VLAN_VID_MASK (0x0FFF)
+#define ETHERTYPE_IS_VLAN(x) ((x) == ETH_P_8021Q || (x) == 0x9100 /*qinq*/ || (x) == 0x88A8 /*802.1 ad*/)
+#define INVALID_FLOW_HASH (0)
 
 #if !defined(PCAP_NETMASK_UNKNOWN)
-    /*
+/*
      * Value to pass to pcap_compile() as the netmask if you don't know what
      * the netmask is.
      */
-    #define PCAP_NETMASK_UNKNOWN    0xffffffff
+#define PCAP_NETMASK_UNKNOWN 0xffffffff
 #endif
 
 #ifndef MIN
-    #define MIN(x,y) ((x)>(y)?(y):(x))
-#endif  /*MIN*/
+#define MIN(x, y) ((x) > (y) ? (y) : (x))
+#endif /*MIN*/
 
-#define LIKELY(x)   __builtin_expect((x),1)
-#define UNLIKELY(x) __builtin_expect((x),0)
-
+#define LIKELY(x) __builtin_expect((x), 1)
+#define UNLIKELY(x) __builtin_expect((x), 0)
 
 // stuff coming from http://lxr.free-electrons.com/source/include/net/gtp.h
 
 /* General GTP protocol related definitions. */
-#define GTP1U_PORT      2152
-#define GTP_TPDU        255
-#define GTP1_F_NPDU     0x01
-#define GTP1_F_SEQ      0x02
-#define GTP1_F_EXTHDR   0x04
-#define GTP1_F_MASK     0x07
-
+#define GTP1U_PORT 2152
+#define GTP_TPDU 255
+#define GTP1_F_NPDU 0x01
+#define GTP1_F_SEQ 0x02
+#define GTP1_F_EXTHDR 0x04
+#define GTP1_F_MASK 0x07
 
 //------------------------------------------------------------------------------
 // Time macros
 //------------------------------------------------------------------------------
 
-#define SEC_TO_NSEC(x)			(x*(1E9))
-#define SEC_TO_USEC(x)			(x*(1E6))
+#define SEC_TO_NSEC(x) (x * (1E9))
+#define SEC_TO_USEC(x) (x * (1E6))
 
-#define NSEC_TO_SEC(x)			(x/(1E9))
-#define NSEC_TO_USEC(x)			(x/(1E6))
+#define NSEC_TO_SEC(x) (x / (1E9))
+#define NSEC_TO_USEC(x) (x / (1E6))
 
-#define USEC_TO_SEC(x)			(x/(1E6))
-
+#define USEC_TO_SEC(x) (x / (1E6))
 
 //------------------------------------------------------------------------------
 // Types
 //------------------------------------------------------------------------------
 
-
 // VLAN frame definition:
 
 typedef struct
 {
-	uint16_t vlanId;			// in NETWORK order
+	uint16_t vlanId; // in NETWORK order
 	uint16_t protoType;
 } __attribute__((packed)) ether80211q_t;
-
 
 // GTPv1 frame definition:
 // stuff coming from http://lxr.free-electrons.com/source/include/net/gtp.h
 
-struct gtp1_header {    /* According to 3GPP TS 29.060. */
-	__u8    flags;
-	__u8    type;
-	__be16  length;
-	__be32  tid;
-} __attribute__ ((packed));
+struct gtp1_header
+{ /* According to 3GPP TS 29.060. */
+	__u8 flags;
+	__u8 type;
+	__be16 length;
+	__be32 tid;
+} __attribute__((packed));
 
 class Packet
 {
 public:
-	Packet(struct pcap_pkthdr* hdr = NULL, const u_char* data = NULL)
-		{ m_pcap_header=hdr; m_pcap_packet=data; m_pcaplib_owns_data=true; }
+	Packet(struct pcap_pkthdr *hdr = NULL, const u_char *data = NULL)
+	{
+		m_pcap_header = hdr;
+		m_pcap_packet = data;
+		m_pcaplib_owns_data = true;
+	}
 
 	~Packet() { destroy(); }
 
@@ -155,39 +154,50 @@ public:
 				free(m_pcap_header);
 
 			if (m_pcap_packet)
-				free(const_cast<u_char*>(m_pcap_packet));
+				free(const_cast<u_char *>(m_pcap_packet));
 
 			m_pcap_header = NULL;
 			m_pcap_packet = NULL;
 		}
 	}
 
-	void copy(const struct pcap_pkthdr* hdr, const u_char* data)
+	void copy(const struct pcap_pkthdr *hdr, const u_char *data)
 	{
-		destroy();		// just in case
+		destroy(); // just in case
 
 		m_pcaplib_owns_data = false;
-		m_pcap_header = (struct pcap_pkthdr*)malloc(sizeof(struct pcap_pkthdr)+1);
-		m_pcap_packet = (u_char*)malloc(hdr->caplen+1);
+		m_pcap_header = (struct pcap_pkthdr *)malloc(sizeof(struct pcap_pkthdr) + 1);
+		m_pcap_packet = (u_char *)malloc(hdr->caplen + 1);
 
 		memcpy(m_pcap_header, hdr, sizeof(struct pcap_pkthdr));
-		memcpy(const_cast<u_char*>(m_pcap_packet), data, hdr->caplen);
+		memcpy(const_cast<u_char *>(m_pcap_packet), data, hdr->caplen);
 	}
 
-	size_t len() const				{ if (m_pcap_header) return m_pcap_header->caplen; else return 0; }
+	size_t len() const
+	{
+		if (m_pcap_header)
+			return m_pcap_header->caplen;
+		else
+			return 0;
+	}
 
-	const struct pcap_pkthdr* header() const		{ return m_pcap_header; }
-	const u_char* data() const						{ return m_pcap_packet; }
+	const struct pcap_pkthdr *header() const { return m_pcap_header; }
+	const u_char *data() const { return m_pcap_packet; }
 
-	static double pcap_timestamp_to_seconds(struct timeval* ts)
+	static double pcap_timestamp_to_seconds(struct timeval *ts)
 	{
 		return (double)ts->tv_sec +
-							USEC_TO_SEC((double)ts->tv_usec);
+			   USEC_TO_SEC((double)ts->tv_usec);
 	}
-	static double pcap_timestamp_to_seconds(struct pcap_pkthdr* pcap_header)
+	static double pcap_timestamp_to_seconds(struct pcap_pkthdr *pcap_header)
 	{
 		return pcap_timestamp_to_seconds(&pcap_header->ts);
 	}
+	static bool pcap_timestamp_is_valid(struct pcap_pkthdr *pcap_header)
+	{
+		return pcap_header->ts.tv_sec + pcap_header->ts.tv_usec > 0;
+	}
+
 	double pcap_timestamp_to_seconds() const
 	{
 		return pcap_timestamp_to_seconds(&m_pcap_header->ts);
@@ -200,11 +210,10 @@ public:
 	}
 
 private:
-	struct pcap_pkthdr*			m_pcap_header;
-	const u_char*				m_pcap_packet;
-	bool						m_pcaplib_owns_data;
+	struct pcap_pkthdr *m_pcap_header;
+	const u_char *m_pcap_packet;
+	bool m_pcaplib_owns_data;
 };
-
 
 //------------------------------------------------------------------------------
 // Functions

@@ -23,7 +23,6 @@
 
  */
 
-
 //------------------------------------------------------------------------------
 // Includes
 //------------------------------------------------------------------------------
@@ -38,7 +37,7 @@
 #include <netinet/ip6.h>
 #include <arpa/inet.h>
 #include <netinet/if_ether.h> /* includes net/ethernet.h */
-#include <netinet/ip.h> /* superset of previous */
+#include <netinet/ip.h>		  /* superset of previous */
 #include <linux/udp.h>
 #include <linux/tcp.h>
 
@@ -49,7 +48,6 @@
 #include <vector>
 #include <algorithm>
 #include <string>
-
 
 //------------------------------------------------------------------------------
 // Globals
@@ -64,31 +62,29 @@ bool g_termination_requested = false;
 static struct option g_long_options[] = {
 
 	// misc options
-	{"help",                           no_argument,       0,  'h' },
-	{"verbose",                        no_argument,       0,  'v' },
-	{"quiet",                          no_argument,       0,  'q' },
-	{"timing",                         no_argument,       0,  't'},
-	{"stats",                          no_argument,       0,  'p'},
-	{"append",                         no_argument,       0,  'a'},
-	{"write",                          required_argument, 0,  'w' },
+	{"help", no_argument, 0, 'h'},
+	{"verbose", no_argument, 0, 'v'},
+	{"quiet", no_argument, 0, 'q'},
+	{"timing", no_argument, 0, 't'},
+	{"stats", no_argument, 0, 'p'},
+	{"append", no_argument, 0, 'a'},
+	{"write", required_argument, 0, 'w'},
 
 	// filters
-	{"display-filter",                 required_argument, 0,  'Y' },
-	{"inner-filter",                   required_argument, 0,  'G' },
-	{"connection-filter",              required_argument, 0,  'C' },
-	{"string-filter",                  required_argument, 0,  'S' },
-	{"tcp-filter",                     required_argument, 0,  'T' },
+	{"display-filter", required_argument, 0, 'Y'},
+	{"inner-filter", required_argument, 0, 'G'},
+	{"connection-filter", required_argument, 0, 'C'},
+	{"string-filter", required_argument, 0, 'S'},
+	{"tcp-filter", required_argument, 0, 'T'},
 
 	// processing options
-	{"set-duration",                   required_argument, 0,  'D' },
-	{"set-duration-preserve-ifg",      required_argument, 0,  'd' },
-	{"set-timestamps-from",            required_argument, 0,  's' },
+	{"set-duration", required_argument, 0, 'D'},
+	{"set-duration-preserve-ifg", required_argument, 0, 'd'},
+	{"set-timestamps-from", required_argument, 0, 's'},
 
-	{0,                                0,                 0,  0 }
-};
+	{0, 0, 0, 0}};
 
-#define SHORT_OPTS		"hvqtpaw:Y:G:C:S:T:"
-
+#define SHORT_OPTS "hvqtpaw:Y:G:C:S:T:"
 
 //------------------------------------------------------------------------------
 // Types
@@ -194,7 +190,7 @@ static void print_help()
 	exit(0);
 }
 
-static bool firstpass_process_pcap_handle_for_tcp_streams(pcap_t* pcap_handle_in, FilterCriteria* filter, unsigned long* nvalidflowsOUT)
+static bool firstpass_process_pcap_handle_for_tcp_streams(pcap_t *pcap_handle_in, FilterCriteria *filter, unsigned long *nvalidflowsOUT)
 {
 	unsigned long nloaded_pkts = 0, ninvalid_pkts = 0, nnottcp_pkts = 0;
 	unsigned long nfound_streams = 0, nsyn_streams = 0, nsyn_synack_streams = 0, nfull3way_streams = 0, nfull3way_with_data_streams = 0;
@@ -212,12 +208,11 @@ static bool firstpass_process_pcap_handle_for_tcp_streams(pcap_t* pcap_handle_in
 
 		nloaded_pkts++;
 		if ((nloaded_pkts % MILLION) == 0 && nloaded_pkts > 0)
-			printf_verbose("%luM packets loaded from PCAP...\n", nloaded_pkts/MILLION);
-
+			printf_verbose("%luM packets loaded from PCAP...\n", nloaded_pkts / MILLION);
 
 		// first, detect if this is a TCP SYN/SYN-ACK packet
-		flow_hash_t hash=INVALID_FLOW_HASH;
-		bool is_tcp_syn=false, is_tcp_syn_ack=false, is_tcp_ack=false;
+		flow_hash_t hash = INVALID_FLOW_HASH;
+		bool is_tcp_syn = false, is_tcp_syn_ack = false, is_tcp_ack = false;
 
 		int offsetInnerTransport = 0, innerIpProt = 0, len_after_transport_start = 0;
 		ParserRetCode_t ret = get_gtpu_inner_transport_start_offset(pkt, &offsetInnerTransport, &innerIpProt, &len_after_transport_start, &hash);
@@ -229,7 +224,7 @@ static bool firstpass_process_pcap_handle_for_tcp_streams(pcap_t* pcap_handle_in
 			{
 				offsetInnerTransport = 0;
 				innerIpProt = 0;
-				hash=INVALID_FLOW_HASH;
+				hash = INVALID_FLOW_HASH;
 				ninvalid_pkts++;
 				continue;
 			}
@@ -241,25 +236,23 @@ static bool firstpass_process_pcap_handle_for_tcp_streams(pcap_t* pcap_handle_in
 			continue;
 		}
 
-
 		// then save the state for the TCP connection associated to this packet:
 
-		assert(hash!=INVALID_FLOW_HASH);
-		std::pair<flow_map_t::iterator,bool> result =
-				filter->flow_map().insert( std::pair<flow_hash_t /* key */, FlowStatus_t /* value */>(hash, FLOW_FOUND) );
+		assert(hash != INVALID_FLOW_HASH);
+		std::pair<flow_map_t::iterator, bool> result =
+			filter->flow_map().insert(std::pair<flow_hash_t /* key */, FlowStatus_t /* value */>(hash, FLOW_FOUND));
 		if (result.second)
-			nfound_streams++;		// this stream is a new connection
+			nfound_streams++; // this stream is a new connection
 
-
-		const struct tcphdr* tcp = (const struct tcphdr*)(pcap_packet + offsetInnerTransport);
+		const struct tcphdr *tcp = (const struct tcphdr *)(pcap_packet + offsetInnerTransport);
 		if (tcp->syn == 1 && tcp->ack == 0)
-			is_tcp_syn=true;
+			is_tcp_syn = true;
 		if (tcp->syn == 1 && tcp->ack == 1)
-			is_tcp_syn_ack=true;
+			is_tcp_syn_ack = true;
 		if (tcp->syn == 0 && tcp->ack == 1)
-			is_tcp_ack=true;
+			is_tcp_ack = true;
 
-		int transport_hdr_len = 4*tcp->doff;
+		int transport_hdr_len = 4 * tcp->doff;
 		int len_after_transport_end = len_after_transport_start - transport_hdr_len;
 
 		if (is_tcp_syn)
@@ -275,7 +268,7 @@ static bool firstpass_process_pcap_handle_for_tcp_streams(pcap_t* pcap_handle_in
 				if (entry->second == FLOW_FOUND)
 					nsyn_streams++;
 
-				entry->second = FLOW_FOUND_SYN;		// reset status to only SYN found
+				entry->second = FLOW_FOUND_SYN; // reset status to only SYN found
 			}
 		}
 		else if (is_tcp_syn_ack)
@@ -285,9 +278,9 @@ static bool firstpass_process_pcap_handle_for_tcp_streams(pcap_t* pcap_handle_in
 
 			flow_map_t::iterator entry = filter->flow_map().find(hash);
 			if (entry != filter->flow_map().end() &&
-					entry->second == FLOW_FOUND_SYN)
+				entry->second == FLOW_FOUND_SYN)
 			{
-				entry->second = FLOW_FOUND_SYN_AND_SYNACK;		// existing connection, found SYN-ACK packet for that
+				entry->second = FLOW_FOUND_SYN_AND_SYNACK; // existing connection, found SYN-ACK packet for that
 				nsyn_synack_streams++;
 			}
 		}
@@ -301,19 +294,19 @@ static bool firstpass_process_pcap_handle_for_tcp_streams(pcap_t* pcap_handle_in
 			{
 				if (entry->second == FLOW_FOUND_SYN_AND_SYNACK)
 				{
-					entry->second = FLOW_FOUND_SYN_AND_SYNACK_AND_ACK;		// existing connection, found the 3way handshake for that!
+					entry->second = FLOW_FOUND_SYN_AND_SYNACK_AND_ACK; // existing connection, found the 3way handshake for that!
 					nfull3way_streams++;
 
 					if (len_after_transport_end > 0)
 					{
-						entry->second = FLOW_FOUND_SYN_AND_SYNACK_AND_ACK_AND_DATA;		// existing connection, found the 1st data packet after 3way handshake
+						entry->second = FLOW_FOUND_SYN_AND_SYNACK_AND_ACK_AND_DATA; // existing connection, found the 1st data packet after 3way handshake
 						nfull3way_with_data_streams++;
 					}
 				}
 				else if (entry->second == FLOW_FOUND_SYN_AND_SYNACK_AND_ACK &&
-						len_after_transport_end > 0)
+						 len_after_transport_end > 0)
 				{
-					entry->second = FLOW_FOUND_SYN_AND_SYNACK_AND_ACK_AND_DATA;		// existing connection, found the 1st data packet after 3way handshake
+					entry->second = FLOW_FOUND_SYN_AND_SYNACK_AND_ACK_AND_DATA; // existing connection, found the 1st data packet after 3way handshake
 					nfull3way_with_data_streams++;
 				}
 			}
@@ -328,21 +321,21 @@ static bool firstpass_process_pcap_handle_for_tcp_streams(pcap_t* pcap_handle_in
 
 			flow_map_t::iterator entry = filter->flow_map().find(hash);
 			if (entry != filter->flow_map().end() &&
-					entry->second == FLOW_FOUND_SYN_AND_SYNACK_AND_ACK)
+				entry->second == FLOW_FOUND_SYN_AND_SYNACK_AND_ACK)
 			{
-				entry->second = FLOW_FOUND_SYN_AND_SYNACK_AND_ACK_AND_DATA;		// existing connection, found the 1st data packet after 3way handshake
+				entry->second = FLOW_FOUND_SYN_AND_SYNACK_AND_ACK_AND_DATA; // existing connection, found the 1st data packet after 3way handshake
 				nfull3way_with_data_streams++;
 			}
 		}
 	}
 	gettimeofday(&stop, NULL);
 
-	printf_verbose("Processing took %i seconds.\n", (int) (stop.tv_sec - start.tv_sec));
+	printf_verbose("Processing took %i seconds.\n", (int)(stop.tv_sec - start.tv_sec));
 	printf_verbose("Detected %lu invalid packets and %lu non-TCP packets (on total of %lu packets)\n",
-					ninvalid_pkts, nnottcp_pkts, nloaded_pkts);
+				   ninvalid_pkts, nnottcp_pkts, nloaded_pkts);
 
 	printf_normal("Detected flows:\n  Having at least 1SYN: %lu\n  Having SYN-SYNACK: %lu\n  Having full 3way handshake: %lu\n  Having full 3way handshake and data: %lu\n  Total TCP flows found: %lu\n",
-			nsyn_streams, nsyn_synack_streams, nfull3way_streams, nfull3way_with_data_streams, nfound_streams);
+				  nsyn_streams, nsyn_synack_streams, nfull3way_streams, nfull3way_with_data_streams, nfound_streams);
 
 	if (nvalidflowsOUT)
 		*nvalidflowsOUT = nfound_streams;
@@ -350,12 +343,11 @@ static bool firstpass_process_pcap_handle_for_tcp_streams(pcap_t* pcap_handle_in
 	return true;
 }
 
-
-static bool process_pcap_handle(pcap_t* pcap_handle_in,
-								FilterCriteria* filter, /* can be NULL */
-								PacketProcessor* processorcfg, /* can be NULL */
-								pcap_dumper_t* pcap_dumper,
-								unsigned long* nloadedOUT, unsigned long* nmatchingOUT)
+static bool process_pcap_handle(pcap_t *pcap_handle_in,
+								FilterCriteria *filter,		   /* can be NULL */
+								PacketProcessor *processorcfg, /* can be NULL */
+								pcap_dumper_t *pcap_dumper,
+								unsigned long *nloadedOUT, unsigned long *nmatchingOUT)
 {
 	unsigned long nloaded = 0, nmatching = 0, ngtpu = 0, nbytes_avail = 0, nbytes_orig = 0;
 	struct timeval start, stop;
@@ -365,6 +357,9 @@ static bool process_pcap_handle(pcap_t* pcap_handle_in,
 	const u_char *pcap_packet;
 	struct pcap_pkthdr *pcap_header;
 	struct pcap_pkthdr first_pcap_header, last_pcap_header;
+
+	memset(&first_pcap_header, 0, sizeof(first_pcap_header));
+	memset(&last_pcap_header, 0, sizeof(last_pcap_header));
 
 	std::string pcapfilter_desc = "";
 	if (filter && filter->is_capture_filter_set())
@@ -377,8 +372,7 @@ static bool process_pcap_handle(pcap_t* pcap_handle_in,
 		Packet pkt(pcap_header, pcap_packet);
 
 		if ((nloaded % MILLION) == 0 && nloaded > 0)
-			printf_verbose("%luM packets loaded from PCAP%s...\n", nloaded/MILLION, pcapfilter_desc.c_str());
-
+			printf_verbose("%luM packets loaded from PCAP%s...\n", nloaded / MILLION, pcapfilter_desc.c_str());
 
 		// filter and save to output eventually
 
@@ -389,11 +383,13 @@ static bool process_pcap_handle(pcap_t* pcap_handle_in,
 			tosave = filter->must_be_saved(pkt, &is_gtpu);
 		//else: filtering disabled, save all packets
 
-		if (tosave) {
+		if (tosave)
+		{
 			if (processorcfg)
 			{
 				bool pktWasChanged = false;
-				if (!processorcfg->process_packet(pkt, tempPkt, nmatching /* this is the index of the saved packets */, pktWasChanged)) {
+				if (!processorcfg->process_packet(pkt, tempPkt, nmatching /* this is the index of the saved packets */, pktWasChanged))
+				{
 					printf_error("Error while processing packet %lu. Aborting.\n", nmatching);
 					return false;
 				}
@@ -401,13 +397,13 @@ static bool process_pcap_handle(pcap_t* pcap_handle_in,
 				if (pktWasChanged)
 				{
 					if (pcap_dumper)
-						pcap_dump((u_char *) pcap_dumper, tempPkt.header(), tempPkt.data());
+						pcap_dump((u_char *)pcap_dumper, tempPkt.header(), tempPkt.data());
 				}
 				else
 				{
 					// dump original packet
 					if (pcap_dumper)
-						pcap_dump((u_char *) pcap_dumper, pcap_header, pcap_packet);
+						pcap_dump((u_char *)pcap_dumper, pcap_header, pcap_packet);
 				}
 			}
 
@@ -416,11 +412,10 @@ static bool process_pcap_handle(pcap_t* pcap_handle_in,
 		if (is_gtpu)
 			ngtpu++;
 
-
 		if (g_timestamp_analysis)
 		{
 			// save timestamps for later analysis:
-			if (UNLIKELY( first ))
+			if (UNLIKELY(first))
 			{
 				memcpy(&first_pcap_header, pcap_header, sizeof(struct pcap_pkthdr));
 				first = false;
@@ -434,7 +429,6 @@ static bool process_pcap_handle(pcap_t* pcap_handle_in,
 			update_parsing_stats(pkt, parsing_stats);
 		}
 
-
 		// advance main stats counters:
 
 		nbytes_avail += pcap_header->caplen;
@@ -443,16 +437,17 @@ static bool process_pcap_handle(pcap_t* pcap_handle_in,
 	}
 	gettimeofday(&stop, NULL);
 
+	printf_verbose("Processing took %i seconds.\n", (int)(stop.tv_sec - start.tv_sec));
+	printf_normal("%luM packets (%lu packets) were loaded from PCAP%s.\n", nloaded / MILLION, nloaded, pcapfilter_desc.c_str());
 
-	printf_verbose("Processing took %i seconds.\n", (int) (stop.tv_sec - start.tv_sec));
-	printf_normal("%luM packets (%lu packets) were loaded from PCAP%s.\n", nloaded/MILLION, nloaded, pcapfilter_desc.c_str());
-
-	if (filter) {
+	if (filter)
+	{
 		if (!filter->post_filtering(nloaded))
 			return false;
 	}
 
-	if (processorcfg) {
+	if (processorcfg)
+	{
 		if (!processorcfg->post_processing(nloaded))
 			return false;
 	}
@@ -462,7 +457,7 @@ static bool process_pcap_handle(pcap_t* pcap_handle_in,
 		if (filter && filter->is_some_filter_active())
 		{
 			printf_normal("%luM packets (%lu packets) matched the filtering criteria (search string / PCAP filters / TCP streams filter) and were saved into output PCAP.\n",
-					nmatching/MILLION, nmatching);
+						  nmatching / MILLION, nmatching);
 		}
 		else if (filter && !filter->is_some_filter_active())
 		{
@@ -471,41 +466,61 @@ static bool process_pcap_handle(pcap_t* pcap_handle_in,
 		}
 		else if (processorcfg)
 		{
-			printf_normal("%luM packets (%lu packets) were processed and saved into output PCAP.\n", nmatching/MILLION, nmatching);
+			printf_normal("%luM packets (%lu packets) were processed and saved into output PCAP.\n", nmatching / MILLION, nmatching);
 		}
 	}
 
 	if (g_timestamp_analysis)
 	{
+		if (!Packet::pcap_timestamp_is_valid(&first_pcap_header) ||
+			!Packet::pcap_timestamp_is_valid(&last_pcap_header))
+		{
+			if (g_quiet)
+				printf_quiet("-1\n"); // be machine-friendly and indicate an error
+			else
+			{
+				if (nloaded <= 1)
+					printf_normal("The PCAP contains %lu packet: not enough to compute the PCAP duration.\n", nloaded);
+				else
+					printf_normal("Apparently the packets of the PCAP have no valid timestamp... cannot compute PCAP duration.\n");
+			}
+
+			return false;
+		}
+
 		double secStart = Packet::pcap_timestamp_to_seconds(&first_pcap_header);
 		double secStop = Packet::pcap_timestamp_to_seconds(&last_pcap_header);
 		double sec = secStop - secStart;
 		if (secStart < SMALL_NUM && secStop == SMALL_NUM)
 		{
-			printf_normal("Apparently the packets of the PCAP have no valid timestamp... cannot compute PCAP duration.\n");
-		}
-		else
-		{
 			if (g_quiet)
-				printf_quiet("%f\n",sec);		// be machine-friendly
+				printf_quiet("-1\n"); // be machine-friendly and indicate an error
 			else
-				printf_normal("Last packet has a timestamp offset = %.2fsec = %.2fmin = %.2fhours\n",
-							sec, sec/60.0, sec/3600.0);
+				printf_normal("Apparently the packets of the PCAP have no valid timestamp... cannot compute PCAP duration.\n");
+
+			return false;
 		}
 
+		if (g_quiet)
+			printf_quiet("%f\n", sec); // be machine-friendly
+		else
+			printf_normal("Last packet has a timestamp offset = %.2fsec = %.2fmin = %.2fhours\n",
+						  sec, sec / 60.0, sec / 3600.0);
+
 		printf_verbose("Bytes loaded from PCAP = %lukiB = %luMiB; total bytes on wire = %lukiB = %luMiB\n",
-			   nbytes_avail/KB, nbytes_avail/MB, nbytes_orig/KB, nbytes_orig/MB);
+					   nbytes_avail / KB, nbytes_avail / MB, nbytes_orig / KB, nbytes_orig / MB);
 		if (nbytes_avail == nbytes_orig)
 			printf_verbose("  => all packets in the PCAP have been captured WITHOUT truncation.\n");
 
-		if (sec)
+		if (sec > 0)
 		{
 			printf_normal("Tcpreplay should replay this PCAP at an average of %.2fMbps / %.2fpps to respect PCAP timings.\n",
-				  (float)(8*nbytes_avail/MB)/sec, (float)nloaded/sec);
+						  (float)(8 * nbytes_avail / MB) / sec, (float)nloaded / sec);
 		}
 		else
 		{
-			printf_normal("Cannot compute optimal tcpreplay speed for replaying: duration is 0sec.\n");
+			printf_normal("Cannot compute optimal tcpreplay speed for replaying: duration is null or negative.\n");
+			return false;
 		}
 	}
 
@@ -516,33 +531,35 @@ static bool process_pcap_handle(pcap_t* pcap_handle_in,
 			// be machine-friendly: use CSV format
 			printf_quiet("GTPu pkts with valid inner transport,GTPu pkts with valid inner IP,Pkts with valid transport,Pkts with valid IP,Pkts invalid\n");
 			printf_quiet("%lu,%lu,%lu,%lu,%lu\n",
-							parsing_stats.pkts_valid_gtpu_transport,
-							parsing_stats.pkts_valid_gtpu_ip,
-							parsing_stats.pkts_valid_tranport,
-							parsing_stats.pkts_valid_ip,
-							parsing_stats.pkts_invalid);
+						 parsing_stats.pkts_valid_gtpu_transport,
+						 parsing_stats.pkts_valid_gtpu_ip,
+						 parsing_stats.pkts_valid_tranport,
+						 parsing_stats.pkts_valid_ip,
+						 parsing_stats.pkts_invalid);
 		}
 		else
 		{
 			printf_normal("Parsing stats: %.2f%% GTPu with valid inner transport, %.2f%% GTPu with valid inner IP, %.2f%% with valid transport, %.2f%% with valid IP, %.2f%% invalid.\n",
-					parsing_stats.perc_pkts_valid_gtpu_transport(),
-					parsing_stats.perc_pkts_valid_gtpu_ip(),
-					parsing_stats.perc_pkts_valid_tranport(),
-					parsing_stats.perc_pkts_valid_ip(),
-					parsing_stats.perc_pkts_invalid());
+						  parsing_stats.perc_pkts_valid_gtpu_transport(),
+						  parsing_stats.perc_pkts_valid_gtpu_ip(),
+						  parsing_stats.perc_pkts_valid_tranport(),
+						  parsing_stats.perc_pkts_valid_ip(),
+						  parsing_stats.perc_pkts_invalid());
 		}
 	}
 
 	// provide output info
-	if (nloadedOUT) *nloadedOUT += nloaded;
-	if (nmatchingOUT) *nmatchingOUT += nmatching;
+	if (nloadedOUT)
+		*nloadedOUT += nloaded;
+	if (nmatchingOUT)
+		*nmatchingOUT += nmatching;
 
 	return true;
 }
 
-static bool process_file(const std::string& infile, const std::string& outfile, bool outfile_append,
-							FilterCriteria *filter, PacketProcessor* processorcfg,
-							unsigned long* nloadedOUT, unsigned long* nmatchingOUT)
+static bool process_file(const std::string &infile, const std::string &outfile, bool outfile_append,
+						 FilterCriteria *filter, PacketProcessor *processorcfg,
+						 unsigned long *nloadedOUT, unsigned long *nmatchingOUT)
 {
 	char pcap_errbuf[PCAP_ERRBUF_SIZE];
 	pcap_t *pcap_handle_in = NULL;
@@ -554,14 +571,14 @@ static bool process_file(const std::string& infile, const std::string& outfile, 
 
 	// open infile
 	pcap_handle_in = pcap_open_offline(infile.c_str(), pcap_errbuf);
-	if (pcap_handle_in == NULL) {
+	if (pcap_handle_in == NULL)
+	{
 		printf_error("Cannot open file: %s\n", pcap_errbuf);
 		return false;
 	}
 	printf_verbose("Analyzing PCAP file '%s'...\n", infile.c_str());
 	if (st.st_size)
-		printf_verbose("The PCAP file has size %.2fGiB = %luMiB.\n", (double)st.st_size/(double)GB, st.st_size/MB);
-
+		printf_verbose("The PCAP file has size %.2fGiB = %luMiB.\n", (double)st.st_size / (double)GB, st.st_size / MB);
 
 	// open outfile
 	if (!outfile.empty())
@@ -588,7 +605,6 @@ static bool process_file(const std::string& infile, const std::string& outfile, 
 		}
 	}
 
-
 	// do the real job
 
 	if (filter->needs_2passes())
@@ -596,14 +612,12 @@ static bool process_file(const std::string& infile, const std::string& outfile, 
 		// special mode: this requires 2 pass over the PCAP file: first one to get hash values for valid FLOWS;
 		// second one to actually filter all flows with valid hashes
 
-
 		// first pass:
 		printf_normal("TCP connection filtering enabled: performing first pass\n");
 
-		unsigned long nvalidflows=0;
+		unsigned long nvalidflows = 0;
 		if (!firstpass_process_pcap_handle_for_tcp_streams(pcap_handle_in, filter, &nvalidflows))
 			return false;
-
 
 		if (nvalidflows)
 		{
@@ -614,14 +628,15 @@ static bool process_file(const std::string& infile, const std::string& outfile, 
 			// reopen infile
 			pcap_close(pcap_handle_in);
 			pcap_handle_in = pcap_open_offline(infile.c_str(), pcap_errbuf);
-			if (pcap_handle_in == NULL) {
+			if (pcap_handle_in == NULL)
+			{
 				printf_error("Cannot open file: %s\n", pcap_errbuf);
 				return false;
 			}
 
 			printf_verbose("Analyzing PCAP file '%s'...\n", infile.c_str());
 			if (st.st_size)
-				printf_verbose("The PCAP file has size %.2fGiB = %luMiB.\n", (double)st.st_size/(double)GB, st.st_size/MB);
+				printf_verbose("The PCAP file has size %.2fGiB = %luMiB.\n", (double)st.st_size / (double)GB, st.st_size / MB);
 
 			if (!process_pcap_handle(pcap_handle_in, filter, processorcfg, pcap_dumper, nloadedOUT, nmatchingOUT))
 				return false;
@@ -640,7 +655,7 @@ static bool process_file(const std::string& infile, const std::string& outfile, 
 		if (!filter->is_some_filter_active())
 		{
 			printf_verbose("Packet processing operations active but no filter specified: processing ALL input packets\n");
-			filterToUse = NULL;		// disable filter-out logic
+			filterToUse = NULL; // disable filter-out logic
 		}
 
 		if (processorcfg->needs_2passes())
@@ -659,7 +674,8 @@ static bool process_file(const std::string& infile, const std::string& outfile, 
 				// reopen infile
 				pcap_close(pcap_handle_in);
 				pcap_handle_in = pcap_open_offline(infile.c_str(), pcap_errbuf);
-				if (pcap_handle_in == NULL) {
+				if (pcap_handle_in == NULL)
+				{
 					printf_error("Cannot open file: %s\n", pcap_errbuf);
 					return false;
 				}
@@ -687,12 +703,11 @@ static bool process_file(const std::string& infile, const std::string& outfile, 
 	return true;
 }
 
-
 //------------------------------------------------------------------------------
 // signal handler
 //------------------------------------------------------------------------------
 
-static void sigint_handler(int /*sigNum*/, siginfo_t* /*sigInfo*/, void* /*context*/)
+static void sigint_handler(int /*sigNum*/, siginfo_t * /*sigInfo*/, void * /*context*/)
 {
 	printf("Received interruption... aborting. Output results may be incomplete.\n");
 	g_termination_requested = true;
@@ -718,13 +733,15 @@ int main(int argc, char **argv)
 	std::string set_timestamps;
 	TcpFilterMode valid_tcp_filter_mode = TCP_FILTER_NOT_ACTIVE;
 
-	while (true) {
+	while (true)
+	{
 
-		opt = getopt_long(argc, argv, SHORT_OPTS,  g_long_options, 0);
+		opt = getopt_long(argc, argv, SHORT_OPTS, g_long_options, 0);
 		if (opt == -1)
 			break;
 
-		switch (opt) {
+		switch (opt)
+		{
 		case 'v':
 			g_verbose = true;
 			break;
@@ -746,7 +763,6 @@ int main(int argc, char **argv)
 		case 't':
 			g_timestamp_analysis = true;
 			break;
-
 
 			// filters:
 
@@ -773,7 +789,6 @@ int main(int argc, char **argv)
 				printf_error("Unsupported TCP filtering mode: %s\n", optarg);
 			break;
 
-
 			// processing options:
 		case 'D':
 			set_duration_reset_ifg = optarg;
@@ -789,18 +804,17 @@ int main(int argc, char **argv)
 			set_timestamps = optarg;
 			break;
 
-
 			// detect errors:
 
 		case '?':
-			{
-				if (optopt == 'w' || optopt == 'Y' || optopt == 'G' || optopt == 's' || optopt == 'D'  || optopt == 'd')
-					printf_error("Option -%c requires an argument.\n", optopt);
-				else if (isprint (optopt))
-					printf_error("Unknown option `-%c'.\n", optopt);
-				else
-					printf_error("Unknown option character `\\x%x'.\n", optopt);
-			}
+		{
+			if (optopt == 'w' || optopt == 'Y' || optopt == 'G' || optopt == 's' || optopt == 'D' || optopt == 'd')
+				printf_error("Option -%c requires an argument.\n", optopt);
+			else if (isprint(optopt))
+				printf_error("Unknown option `-%c'.\n", optopt);
+			else
+				printf_error("Unknown option character `\\x%x'.\n", optopt);
+		}
 			return 1;
 
 		default:
@@ -813,21 +827,21 @@ int main(int argc, char **argv)
 	if (g_verbose && g_quiet)
 	{
 		printf_error("Both verbose mode (-v) and quiet mode (-q) were specified... aborting.\n");
-		return 1;	// failure
+		return 1; // failure
 	}
 
-	bool some_filter_set = !pcap_filter.empty() || !pcap_gtpu_filter.empty() || !extract_filter.empty() || !search.empty() || (valid_tcp_filter_mode!=TCP_FILTER_NOT_ACTIVE);
+	bool some_filter_set = !pcap_filter.empty() || !pcap_gtpu_filter.empty() || !extract_filter.empty() || !search.empty() || (valid_tcp_filter_mode != TCP_FILTER_NOT_ACTIVE);
 	if (some_filter_set && outfile.empty())
 	{
 		printf_error("A filtering option (-Y, -G, -C, -S or -T) was provided but no output file (-w) was specified... aborting.\n");
-		return 1;	// failure
+		return 1; // failure
 	}
 
 	bool some_processing_set = !new_duration.empty() || !set_timestamps.empty();
 	if (some_processing_set && outfile.empty())
 	{
 		printf_error("A processing option (--set-duration or --set-duration-preserve-ifg or --set-timestamps-from) was provided but no output file (-w) was specified... aborting.\n");
-		return 1;	// failure
+		return 1; // failure
 	}
 
 	if (valid_tcp_filter_mode != TCP_FILTER_NOT_ACTIVE && !new_duration.empty())
@@ -835,13 +849,13 @@ int main(int argc, char **argv)
 		// for implementation simplicity, we don't allow to both TCP filter (which is 2pass filtering)
 		// with duration setting (which is 2pass filtering)
 		printf_error("Both -T and --set-duration or --set-duration-preserve-ifg were specified: this is not supported.\n");
-		return 1;	// failure
+		return 1; // failure
 	}
 	if (!extract_filter.empty() && !pcap_gtpu_filter.empty())
 	{
 		// we will convert the -C filter to -G filter, so you cannot give both -C and -G!
 		printf_error("Both -G and -C were specified: this is not supported.\n");
-		return 1;	// failure
+		return 1; // failure
 	}
 
 	if (!extract_filter.empty())
@@ -851,21 +865,23 @@ int main(int argc, char **argv)
 		{
 			printf_error("Invalid format for the 4tuple argument of -C option: %s\n", extract_filter.c_str());
 			printf_error("Syntax is 'IP1:port1 IP2:port2'\n");
-			return 1;	// failure
+			return 1; // failure
 		}
 	}
 
 	unsigned int timestamp_opts_given = 0;
-	if (!set_duration_reset_ifg.empty()) timestamp_opts_given++;
-	if (!set_duration_saving_ifg.empty()) timestamp_opts_given++;
-	if (!set_timestamps.empty()) timestamp_opts_given++;
+	if (!set_duration_reset_ifg.empty())
+		timestamp_opts_given++;
+	if (!set_duration_saving_ifg.empty())
+		timestamp_opts_given++;
+	if (!set_timestamps.empty())
+		timestamp_opts_given++;
 	if (timestamp_opts_given > 1)
 	{
 		// either we compress all timestamps with given duration or rather we set all packet timestamps using input file, not both!
 		fprintf(stderr, "Both --set-duration and/or --set-timestamps-from and/or --set-duration-preserve-ifg were specified: this is not supported.\n");
-		return 1;	// failure
+		return 1; // failure
 	}
-
 
 	// install signal handler:
 
@@ -873,15 +889,12 @@ int main(int argc, char **argv)
 	memset(&sa, 0, sizeof(sa));
 	sa.sa_sigaction = sigint_handler;
 	sigemptyset(&sa.sa_mask);
-	sa.sa_flags = SA_SIGINFO;			// use the advanced callback, specially useful because provides the PID of the signal sender
+	sa.sa_flags = SA_SIGINFO; // use the advanced callback, specially useful because provides the PID of the signal sender
 	if (sigaction(SIGINT, &sa, NULL) < 0)
 	{
 		printf_error("Failed to intercept signal %d.", SIGTERM);
-		return 1;	// failure
+		return 1; // failure
 	}
-
-
-
 
 	FilterCriteria filter;
 	if (!filter.prepare_filter(pcap_filter, pcap_gtpu_filter, search, valid_tcp_filter_mode))
@@ -890,15 +903,12 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-
 	PacketProcessor processor;
 	if (!processor.prepare_processor(new_duration, preserve_ifg, set_timestamps))
 	{
 		// error was already logged
 		return 1;
 	}
-
-
 
 	// the last non-option arguments are the input filenames:
 
@@ -907,7 +917,7 @@ int main(int argc, char **argv)
 		printf_error("Please provide at least one input PCAP file to analyze. Use --help for help.\n");
 		return 1;
 	}
-	else if (optind == argc-1)
+	else if (optind == argc - 1)
 	{
 		std::string infile(argv[optind]);
 
@@ -939,7 +949,7 @@ int main(int argc, char **argv)
 				return 2;
 			printf("\n");
 
-			append = true;		// regardless of what user asked for, when processing 2nd file avoid overwrite the filtering result of the 1st file :)
+			append = true; // regardless of what user asked for, when processing 2nd file avoid overwrite the filtering result of the 1st file :)
 		}
 
 		printf_verbose("Total number of loaded packets: %lu\n", nloaded);
@@ -948,7 +958,3 @@ int main(int argc, char **argv)
 
 	return 0;
 }
-
-
-
-
