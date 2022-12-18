@@ -187,6 +187,11 @@ public:
     {
         return pcap_timestamp_to_seconds(&pcap_header->ts);
     }
+    static bool pcap_timestamp_is_valid(struct pcap_pkthdr* pcap_header)
+    {
+        return pcap_header->ts.tv_sec + pcap_header->ts.tv_usec > 0;
+    }
+
     double pcap_timestamp_to_seconds() const
     {
         return pcap_timestamp_to_seconds(&m_pcap_header->ts);
