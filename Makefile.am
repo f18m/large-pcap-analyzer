@@ -6,6 +6,7 @@ ACLOCAL_AMFLAGS = -I m4
 
 bin_PROGRAMS = large_pcap_analyzer
 large_pcap_analyzer_SOURCES = src/large-pcap-analyzer.cpp src/filter.cpp src/parse.cpp src/processor.cpp src/pcap_helpers.cpp
+large_pcap_analyzer_HDRS = src/large-pcap-analyzer.h   src/filter.h   src/parse.h   src/processor.h   src/pcap_helpers.h    src/config.h 
 
 check: $(bin_PROGRAMS)
 	cd test-pcaps && chmod a+x ./run_tests.sh && bash run_tests.sh
@@ -18,6 +19,12 @@ distclean:
 	rm -f Makefile config.log config.status src/.dirstamp src/config.h src/stamp-h1
 	rm -rf autom4te.cache snap/.snapcraft src/.deps
 
+# Note that currently there is no enforcement (for build to be successful) of the code formatting but
+# the project adheres to the formatting defined in the .clang-format file
+reformat:
+	for s in $(large_pcap_analyzer_SOURCES) $(large_pcap_analyzer_HDRS); do \
+		clang-format -i $$s ; \
+	done
 
 #
 # REMINDERS TO MYSELF FOR RELEASING A NEW VERSION:
