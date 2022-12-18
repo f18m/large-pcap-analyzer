@@ -19,6 +19,8 @@ jobs:
     # build & test
     #- name: check C++ formatting -- TODO
     #  run: make format_check
+    - name: configure
+      run: ./configure
     - name: build large-pcap-analyzer
       run: make
     - name: run unit tests
