@@ -37,9 +37,9 @@ Some features of this utility:
 As for most Linux software, you can install the software just running:
 
 ```
-	$ wget https://github.com/f18m/large-pcap-analyzer/archive/3.7.0.tar.gz
-	$ tar xvzf 3.7.0.tar.gz
-	$ cd large-pcap-analyzer-3.7.0/
+	$ wget https://github.com/f18m/large-pcap-analyzer/archive/3.7.1.tar.gz
+	$ tar xvzf 3.7.1.tar.gz
+	$ cd large-pcap-analyzer-3.7.1/
 	$ ./configure && make
 	$ sudo make install
 ```
@@ -57,7 +57,7 @@ For developers: link to [Snapcraft page for large PCAP analyzer](https://build.s
 # Command line help
 
 ```
-	large-pcap-analyzer version 3.7.0
+	large-pcap-analyzer version 3.7.1
 	by Francesco Montorsi, (c) 2014-2019
 	Usage:
 	  large-pcap-analyzer [options] somefile.pcap ...

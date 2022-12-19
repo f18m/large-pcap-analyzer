@@ -1,11 +1,11 @@
 Name:           large-pcap-analyzer
-Version:        3.7.0
+Version:        3.7.1
 Release:        1%{?dist}
 Summary:        A command-line utility program to process PCAP captures
 
 License:        GPL
 URL:            https://github.com/f18m/large-pcap-analyzer
-Source0:        https://github.com/f18m/large-pcap-analyzer/archive/3.7.0.tar.gz
+Source0:        https://github.com/f18m/large-pcap-analyzer/archive/3.7.1.tar.gz
 
 BuildRequires:  gcc-c++, libpcap-devel, make
 
