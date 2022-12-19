@@ -805,6 +805,8 @@ distclean:
 	rm -f Makefile config.log config.status src/.dirstamp src/config.h src/stamp-h1
 	rm -rf autom4te.cache snap/.snapcraft src/.deps
 
+# Note that currently there is no enforcement (for build to be successful) of the code formatting but
+# the project adheres to the formatting defined in the .clang-format file
 reformat:
 	for s in $(large_pcap_analyzer_SOURCES) $(large_pcap_analyzer_HDRS); do \
 		clang-format -i $$s ; \

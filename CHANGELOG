@@ -1,4 +1,22 @@
 *****************************************************************************************************
+large-pcap-analyzer v3.7.1
+released on Dec 19, 2022
+
+* bugfix: declare zero as duration for PCAPs with just 1 packet
+
+Others:
+* added Github actions CI
+
+
+*****************************************************************************************************
+large-pcap-analyzer v3.7.0
+released on Nov 17, 2019
+
+New features
+* Add --set-duration-preserve-ifg commandline option.
+* rename "--set-timestamps" to "--set-timestamps-from" 
+
+*****************************************************************************************************
 large-pcap-analyzer v3.6.0
 released on Feb 10, 2019
 

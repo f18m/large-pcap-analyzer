@@ -140,7 +140,7 @@ void printf_error(const char* fmtstr, ...)
 static void print_help()
 {
     printf("%s version %s\n", PACKAGE_NAME, PACKAGE_VERSION);
-    printf("by Francesco Montorsi, (c) 2014-2019\n");
+    printf("by Francesco Montorsi, (c) 2014-2022\n");
     printf("Usage:\n");
     printf("  %s [options] somefile.pcap ...\n", PACKAGE_NAME);
     printf("Miscellaneous options:\n");

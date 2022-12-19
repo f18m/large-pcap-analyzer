@@ -26,23 +26,6 @@ reformat:
 		clang-format -i $$s ; \
 	done
 
-#
-# REMINDERS TO MYSELF FOR RELEASING A NEW VERSION:
-#
-# Ubuntu snap release process:
-# ----------------------------
-# The simpler release process uses Snapcraft/Github integration and requires:
-# 1) create a new release tarball in Github so that the URL:
-#      https://github.com/f18m/large-pcap-analyzer/archive/NEW_VERSION.tar.gz
-#    becomes available
-# 2) log into Snapcraft at https://build.snapcraft.io/user/f18m/large-pcap-analyzer
-#    and hit the "Build manually now" button.
-#
-# COPR release process:
-# ----------------------------
-# 1) log into https://copr.fedorainfracloud.org/coprs/f18m/large-pcap-analyzer/builds/
-# 2) hit the new 
-
 
 #  this is the MANUAL way to upload a new SNAP but it will be uploaded only for amd64 architecture!
 release_new_version:
