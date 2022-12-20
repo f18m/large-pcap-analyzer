@@ -181,6 +181,10 @@ public:
 
     static double pcap_timestamp_to_seconds(struct timeval* ts)
     {
+        // for some reason the 'struct timeval' is using SIGNED integers, at least on Linux x86_64:
+        if (ts->tv_sec < 0 || ts->tv_usec < 0)
+            return 0;
+
         return (double)ts->tv_sec + USEC_TO_SEC((double)ts->tv_usec);
     }
     static double pcap_timestamp_to_seconds(struct pcap_pkthdr* pcap_header)
@@ -201,6 +205,19 @@ public:
     {
         m_pcap_header->ts.tv_sec = (time_t)ts;
         m_pcap_header->ts.tv_usec = SEC_TO_USEC(ts) - SEC_TO_USEC(m_pcap_header->ts.tv_sec);
+
+        /*
+        Beware: ts_usec value shouldn't reach 1 second (in regular pcap files 1 000 000; in nanosecond-resolution files, 1 000 000 000); 
+                in this case ts_sec must be increased instead!
+        See https://wiki.wireshark.org/Development/LibpcapFileFormat
+
+        Also note that large_pcap_analyzer is using libpcap to write PCAP files and libpcap provides no way to produce
+        a nanosecond-resolution file... so we always store MICROSECONDs inside the timeval "ts":
+        */
+        while (m_pcap_header->ts.tv_usec > 1000000) {
+            m_pcap_header->ts.tv_sec++;
+            m_pcap_header->ts.tv_usec -= 1000000;
+        }
     }
 
 private:
