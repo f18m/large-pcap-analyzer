@@ -139,80 +139,54 @@ void printf_error(const char* fmtstr, ...)
 
 static void print_help()
 {
-    printf("%s version %s\n", PACKAGE_NAME, PACKAGE_VERSION);
+    printf("%s version %s, built with libpcap %s\n", PACKAGE_NAME, PACKAGE_VERSION, pcap_lib_version());
     printf("by Francesco Montorsi, (c) 2014-2022\n");
     printf("Usage:\n");
     printf("  %s [options] somefile.pcap ...\n", PACKAGE_NAME);
     printf("Miscellaneous options:\n");
     printf(" -h,--help                this help\n");
     printf(" -v,--verbose             be verbose\n");
-    printf(" -q,--quiet               suppress all normal output, be "
-           "script-friendly\n");
-    printf(" -t,--timing              provide timestamp analysis on loaded "
-           "packets\n");
-    printf(" -p,--stats               provide basic parsing statistics on loaded "
-           "packets\n");
-    printf(" -a,--append              open output file in APPEND mode instead of "
-           "TRUNCATE\n");
+    printf(" -q,--quiet               suppress all normal output, be script-friendly\n");
+    printf(" -t,--timing              provide timestamp analysis on loaded packets\n");
+    printf(" -p,--stats               provide basic parsing statistics on loaded packets\n");
+    printf(" -a,--append              open output file in APPEND mode instead of TRUNCATE\n");
     printf(" -w <outfile.pcap>, --write <outfile.pcap>\n");
-    printf("                          where to save the PCAP containing the "
-           "results of filtering/processing\n");
-    printf("Filtering options (i.e., options to select the packets to save in "
-           "outfile.pcap):\n");
+    printf("                          where to save the PCAP containing the results of filtering/processing\n");
+    printf("Filtering options (i.e., options to select the packets to save in outfile.pcap):\n");
     printf(" -Y <tcpdump_filter>, --display-filter <tcpdump_filter>\n");
-    printf("                          the PCAP filter to apply on packets (will "
-           "be applied on outer IP frames for GTPu pkts)\n");
+    printf("                          the PCAP filter to apply on packets (will be applied on outer IP frames for GTPu pkts)\n");
     printf(" -G <gtpu_tcpdump_filter>, --inner-filter <gtpu_tcpdump_filter>\n");
-    printf("                          the PCAP filter to apply on "
-           "inner/encapsulated GTPu frames (or outer IP frames for non-GTPu "
-           "pkts)\n");
+    printf("                          the PCAP filter to apply on inner/encapsulated GTPu frames (or outer IP frames for non-GTPu pkts)\n");
     printf(" -C <conn_filter>, --connection-filter <conn_filter>\n");
-    printf("                          4-tuple identifying a connection to "
-           "filter; syntax is 'IP1:port1 IP2:port2'\n");
+    printf("                          4-tuple identifying a connection to filter; syntax is 'IP1:port1 IP2:port2'\n");
     printf(" -S <search-string>, --string-filter <search-string>\n");
-    printf("                          a string filter that will be searched "
-           "inside loaded packets\n");
-    printf(" -T <syn|full3way|full3way-data>, --tcp-filter  "
-           "<syn|full3way|full3way-data>\n");
-    printf(
-        "                          filter for entire TCP connections having \n");
+    printf("                          a string filter that will be searched inside loaded packets\n");
+    printf(" -T <syn|full3way|full3way-data>, --tcp-filter  <syn|full3way|full3way-data>\n");
+    printf("                          filter for entire TCP connections having \n");
     printf("                            -T syn: at least 1 SYN packet\n");
     printf("                            -T full3way: the full 3way handshake\n");
-    printf("                            -T full3way-data: the full 3way "
-           "handshake and data packets\n");
-    printf("Processing options (i.e., options that will change packets saved in "
-           "outfile.pcap):\n");
+    printf("                            -T full3way-data: the full 3way handshake and data packets\n");
+    printf("Processing options (i.e., options that will change packets saved in outfile.pcap):\n");
     printf(" --set-duration <HH:MM:SS>\n");
-    printf("                          alters packet timestamps so that the time "
-           "difference between first and last packet\n");
-    printf("                          matches the given amount of time. All "
-           "packets in the middle will be equally spaced in time.\n");
+    printf("                          alters packet timestamps so that the time difference between first and last packet\n");
+    printf("                          matches the given amount of time. All packets in the middle will be equally spaced in time.\n");
     printf(" --set-duration-preserve-ifg <HH:MM:SS>\n");
-    printf("                          alters packet timestamps so that the time "
-           "difference between first and last packet\n");
-    printf("                          matches the given amount of time. "
-           "Interframe gaps (IFG) are scaled accordingly.\n");
+    printf("                          alters packet timestamps so that the time difference between first and last packet\n");
+    printf("                          matches the given amount of time. Interframe gaps (IFG) are scaled accordingly.\n");
     printf(" --set-timestamps-from <infile.txt>\n");
-    printf("                          alters all packet timestamps using the "
-           "list of Unix timestamps contained in the given text file;\n");
-    printf("                          the file format is: one line per packet, a "
-           "single Unix timestamp in seconds (floating point supported)\n");
-    printf("                          per line; the number of lines must match "
-           "exactly the number of packets of the filtered input PCAP.\n");
+    printf("                          alters all packet timestamps using the list of Unix timestamps contained in the given text file;\n");
+    printf("                          the file format is: one line per packet, a single Unix timestamp in seconds (floating point supported)\n");
+    printf("                          per line; the number of lines must match exactly the number of packets of the filtered input PCAP.\n");
     printf("Inputs:\n");
-    printf(" somefile.pcap            the large PCAP trace to analyze; more than "
-           "1 file can be specified.\n");
+    printf(" somefile.pcap            the large PCAP trace to analyze; more than 1 file can be specified.\n");
     printf("\n");
-    printf("Note that the -Y and -G options accept filters expressed in "
-           "tcpdump/pcap_filters syntax.\n");
+    printf("Note that the -Y and -G options accept filters expressed in tcpdump/pcap_filters syntax.\n");
     printf("See http://www.manpagez.com/man/7/pcap-filter/ for more info.\n");
     printf("Other PCAP utilities you may be looking for are:\n");
     printf(" * mergecap: to merge PCAP files\n");
     printf(" * tcpdump: can be used to split PCAP files (and more)\n");
-    printf(" * editcap: can be used to manipulate timestamps in PCAP files (and "
-           "more)\n");
-    printf(" * tcprewrite: can be used to rewrite some packet fields in PCAP "
-           "files (and more)\n");
+    printf(" * editcap: can be used to manipulate timestamps in PCAP files (and more)\n");
+    printf(" * tcprewrite: can be used to rewrite some packet fields in PCAP files (and more)\n");
     exit(0);
 }
 
@@ -618,6 +592,9 @@ static bool process_file(const std::string& infile, const std::string& outfile,
             printf_normal("Successfully opened output PCAP '%s' in APPEND mode\n",
                 outfile.c_str());
         } else {
+            // NOTE: the pcap_dump_open() seems to open always PCAP files with the MAGIC 0xa1b2c3d4
+            //       that indicates MICROSECOND timestamp accuracy; see
+            //       https://wiki.wireshark.org/Development/LibpcapFileFormat#nanosecond-pcap
             pcap_dumper = pcap_dump_open(pcap_handle_in, outfile.c_str());
             if (!pcap_dumper) {
                 printf_error("Cannot open file: %s\n", pcap_geterr(pcap_handle_in));

@@ -90,21 +90,34 @@ function test_timing()
 {
     echo "Testing -t,--timing option..."
 
-    output[1]="$($lpa_binary -t timing-test.pcap)"
+    # test short option
+    test_file[1]="timing-test.pcap"
     expected_pps[1]="0.50pps"
     expected_duration[1]="60.00sec"
+    expected_exitcode[1]=0
 
-    output[2]="$($lpa_binary --timing timing-test.pcap)"
-    expected_pps[2]="0.50pps"
-    expected_duration[2]="60.00sec"
+    # try to check timing of an invalid PCAP file containing negative timestamps
+    test_file[2]="invalid_timestamp1_negative_ts.pcap"
+    expected_pps[2]="0"
+    expected_duration[2]="0"
+    expected_exitcode[2]=2 # we expect a failure in timing analysis
 
-    for testnum in $(seq 1 2); do
+    # try to check timing of an invalid PCAP file containing "0" as timestamp for all pkts
+    test_file[3]="invalid_timestamp2_zero_ts.pcap"
+    expected_pps[3]="0"
+    expected_duration[3]="0"
+    expected_exitcode[3]=2 # we expect a failure in timing analysis
+
+    for testnum in $(seq 1 3); do
+
+        $lpa_binary -t "${test_file[testnum]}" >/tmp/timing-test-${testnum}
+        if [ $? -ne ${expected_exitcode[testnum]} ]; then echo "Failed test of timing analysis (-t option)" ; exit 1 ; fi
 
         # test that the line that starts as "Tcpreplay should replay this PCAP at an average of"... contains the right PPS
-        echo "${output[testnum]}" | grep -q "${expected_pps[testnum]}"
+        cat /tmp/timing-test-${testnum} | grep -q "${expected_pps[testnum]}"
         if [ $? -ne 0 ]; then echo "Failed test of timing analysis (-t option)" ; exit 1 ; fi
 
-        echo "${output[testnum]}" | grep -q "${expected_duration[testnum]}"
+        cat /tmp/timing-test-${testnum} | grep -q "${expected_duration[testnum]}"
         if [ $? -ne 0 ]; then echo "Failed test of timing analysis (-t option)" ; exit 1 ; fi
 
         echo "  ... testcase #$testnum passed."

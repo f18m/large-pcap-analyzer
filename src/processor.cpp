@@ -162,23 +162,32 @@ bool PacketProcessor::process_packet(const Packet& pktIn, Packet& pktOut,
         {
             assert(m_new_duration_secs > 0);
             assert(m_num_input_pkts > 0);
-            assert(m_last_pkt_ts_sec > 0);
+
+            // it's not always garantueed that the timestamp of the last packet is valid; indeed the user might
+            // be trying to rewrite timestamps in an invalid PCAP file (having wrong timestamps) for which the libpcap
+            // is returning 0 as timestamp
+            //assert(m_last_pkt_ts_sec > 0);
 
             if (pktIdx == 0) {
                 assert(m_first_pkt_ts_sec == 0);
                 m_first_pkt_ts_sec = pktIn.pcap_timestamp_to_seconds();
 
-                printf_verbose("First pkt timestamp is %f and there are %zu pkts; "
-                               "target duration is %f\n",
-                    m_first_pkt_ts_sec, m_num_input_pkts,
-                    m_new_duration_secs);
+                printf_verbose("First pkt timestamp is %f and there are %zu pkts; target duration is %f\n",
+                    m_first_pkt_ts_sec, m_num_input_pkts, m_new_duration_secs);
 
-                if (m_first_pkt_ts_sec == 0)
+                if (m_first_pkt_ts_sec == 0) {
                     printf_error(
-                        "WARNING: invalid timestamp zero (Thursday, 1 January 1970 "
-                        "00:00:00) for the first packet. This is unusual.\n");
+                        "WARNING: invalid timestamp set to zero (Thursday, 1 January 1970 00:00:00) for the first packet. This is unusual and typically indicates an invalid PCAP file.\n");
 
-                pktWasChangedOut = false; // no proc done, use original packet
+                    // make sure we set the timestamp to ZERO since the incoming packet has probably invalid timestamp:
+                    pktOut.copy(pktIn.header(), pktIn.data());
+                    pktOut.set_timestamp_from_seconds(m_first_pkt_ts_sec);
+                    pktWasChangedOut = true;
+
+                } else {
+                    pktWasChangedOut = false; // no proc done, use original packet
+                }
+
             } else {
                 double thisPktTs = 0;
 
@@ -240,8 +249,7 @@ bool PacketProcessor::post_processing(unsigned int totNumPkts)
 
     case PROCMODE_SET_TIMESTAMPS: {
         if (totNumPkts < m_timestamps.size()) {
-            printf_error("Too many timestamps specified in the file with timestamps "
-                         "'%s': %zu but input PCAP has %zu packets.\n",
+            printf_error("Too many timestamps specified in the file with timestamps '%s': %zu but input PCAP has %zu packets.\n",
                 m_timestamps_input_file.c_str(), m_timestamps.size(),
                 totNumPkts);
             return false;
