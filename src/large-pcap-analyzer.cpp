@@ -40,11 +40,14 @@
 #include <netinet/in.h>
 #include <netinet/ip.h> /* superset of previous */
 #include <netinet/ip6.h>
+#include <sys/stat.h>
 
 #include <algorithm>
+#include <assert.h>
 #include <getopt.h>
 #include <signal.h>
 #include <sstream>
+#include <stdarg.h>
 #include <string>
 #include <unistd.h>
 #include <vector>

@@ -49,6 +49,10 @@ typedef enum {
     TCP_FILTER_CONN_HAVING_FULL_3WAY_HANDSHAKE_AND_DATA,
 } TcpFilterMode;
 
+//------------------------------------------------------------------------------
+// FilterCriteria
+//------------------------------------------------------------------------------
+
 class FilterCriteria {
 public:
     FilterCriteria()

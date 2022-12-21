@@ -64,7 +64,8 @@ public:
         m_current_pass = 0;
     }
 
-    ~PacketProcessor() {}
+    ~PacketProcessor() { }
+
     bool prepare_processor(const std::string& set_duration, bool preserve_ifg,
         const std::string& timestamp_file);
 

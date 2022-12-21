@@ -36,6 +36,7 @@
 #include <netinet/in.h>
 #include <netinet/ip.h> /* superset of previous */
 
+#include <assert.h>
 #include <fstream>
 #include <sstream>
 

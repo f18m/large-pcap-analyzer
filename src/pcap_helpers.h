@@ -32,6 +32,11 @@
 #include "large-pcap-analyzer.h"
 #include <string>
 
+// libpcap dependency:
+// NOTE: in version 1.7.x there is no pcap/pcap.h, just a pcap.h apparently:
+//#include <pcap/pcap.h>
+#include <pcap.h>
+
 //------------------------------------------------------------------------------
 // Constants
 //------------------------------------------------------------------------------
