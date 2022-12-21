@@ -19,6 +19,8 @@ jobs:
     # build & test
     #- name: check C++ formatting -- TODO
     #  run: make format_check
+    - name: autogen
+      run: ./autogen.sh
     - name: configure
       run: ./configure
     - name: build large-pcap-analyzer
