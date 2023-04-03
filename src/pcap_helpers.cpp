@@ -28,6 +28,7 @@
 //------------------------------------------------------------------------------
 
 #include "pcap_helpers.h"
+#include "printf_helpers.h"
 
 // adapted from
 // http://sourcecodebrowser.com/libpcapnav/0.8/pcapnav__append_8c.html#a918994d1d2d679e4aaad41f7724360ea

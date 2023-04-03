@@ -28,6 +28,7 @@
 
 #include "timestamp_pkt_processor.h"
 #include "large-pcap-analyzer.h"
+#include "printf_helpers.h"
 
 #include <arpa/inet.h>
 #include <linux/tcp.h>
@@ -55,7 +56,7 @@ bool String2TimestampInSecs(const std::string& str, double& result)
 }
 
 //------------------------------------------------------------------------------
-// PacketProcessorConfig
+// TimestampPacketProcessor
 //------------------------------------------------------------------------------
 
 bool TimestampPacketProcessor::prepare_processor(const std::string& set_duration, bool preserve_ifg, const std::string& timestamp_file)

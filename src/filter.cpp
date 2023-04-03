@@ -27,6 +27,7 @@
 //------------------------------------------------------------------------------
 
 #include "filter.h"
+#include "printf_helpers.h"
 
 #include <arpa/inet.h>
 #include <linux/tcp.h>
@@ -196,8 +197,7 @@ bool FilterCriteria::prepare_filter(const std::string& pcap_filter_str,
     return true;
 }
 
-bool FilterCriteria::must_be_saved(
-    const Packet& pkt, bool* is_gtpu) // will do a logical OR of all filters set
+bool FilterCriteria::is_matching(const Packet& pkt, bool* is_gtpu) // will do a logical OR of all filters set
 {
     // string-search filter:
 

@@ -51,6 +51,8 @@ typedef enum {
 
 //------------------------------------------------------------------------------
 // FilterCriteria
+// Implements all possible filtering mechanisms supported by LPA to decide
+// which packets need to be processed/analyzed
 //------------------------------------------------------------------------------
 
 class FilterCriteria {
@@ -91,6 +93,8 @@ public:
     bool is_capture_filter_set() const { return m_capture_filter_set; }
     bool is_gtpu_filter_set() const { return m_gtpu_filter_set; }
 
+    // some filtering criteria will be able to decide correctly if a packet is matching/not-matching the filter
+    // only by running 2 passes on each input PCAP file
     bool needs_2passes() const
     {
         return m_valid_tcp_filter_mode != TCP_FILTER_NOT_ACTIVE;
@@ -99,19 +103,23 @@ public:
     flow_map_t& flow_map() { return m_valid_tcp_firstpass_flows; }
 
     // main API
-    bool must_be_saved(const Packet& pkt, bool* is_gtpu);
+    bool is_matching(const Packet& pkt, bool* is_gtpu);
 
     bool post_filtering(unsigned long nloaded);
 
 private: // filter configuration
+    // BPF filtering on the outer frame:
     struct bpf_program m_capture_filter;
     bool m_capture_filter_set;
 
+    // BPF filtering on the inner frame of GTPu packets:
     struct bpf_program m_gtpu_filter;
     bool m_gtpu_filter_set;
 
+    // text/binary search in packet:
     std::string m_string_filter;
 
+    // TCP filtering:
     TcpFilterMode m_valid_tcp_filter_mode;
 
 private: // filter status

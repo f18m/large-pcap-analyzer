@@ -65,11 +65,21 @@
 #define USEC_TO_SEC(x) (x / (1E6))
 
 //------------------------------------------------------------------------------
-// Functions
+// App configuration
 //------------------------------------------------------------------------------
 
-extern void printf_verbose(const char* fmtstr, ...);
-extern void printf_normal(const char* fmtstr, ...);
-extern void printf_error(const char* fmtstr, ...);
+class LPAConfig {
+public:
+    bool m_verbose = false;
+    bool m_quiet = false;
+    bool m_timestamp_analysis = false;
+    bool m_parsing_stats = false;
+
+    // technically this is not a configuration but the status of the application...
+    // but I'm lazy and didn't create a separate global class just for this:
+    bool m_termination_requested = false;
+};
+
+extern LPAConfig g_config;
 
 #endif
