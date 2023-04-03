@@ -26,8 +26,9 @@
 // Includes
 //------------------------------------------------------------------------------
 
-#include "processor.h"
+#include "timestamp_pkt_processor.h"
 #include "large-pcap-analyzer.h"
+#include "printf_helpers.h"
 
 #include <arpa/inet.h>
 #include <linux/tcp.h>
@@ -55,12 +56,10 @@ bool String2TimestampInSecs(const std::string& str, double& result)
 }
 
 //------------------------------------------------------------------------------
-// PacketProcessorConfig
+// TimestampPacketProcessor
 //------------------------------------------------------------------------------
 
-bool PacketProcessor::prepare_processor(const std::string& set_duration,
-    bool preserve_ifg,
-    const std::string& timestamp_file)
+bool TimestampPacketProcessor::prepare_processor(const std::string& set_duration, bool preserve_ifg, const std::string& timestamp_file)
 {
     if (!set_duration.empty()) {
         // the duration string can be a number in format
@@ -141,9 +140,7 @@ bool PacketProcessor::prepare_processor(const std::string& set_duration,
     return true;
 }
 
-bool PacketProcessor::process_packet(const Packet& pktIn, Packet& pktOut,
-    unsigned int pktIdx,
-    bool& pktWasChangedOut)
+bool TimestampPacketProcessor::process_packet(const Packet& pktIn, Packet& pktOut, unsigned int pktIdx, bool& pktWasChangedOut)
 {
     pktWasChangedOut = false; // by default: no proc done, use original packet
 
@@ -154,7 +151,7 @@ bool PacketProcessor::process_packet(const Packet& pktIn, Packet& pktOut,
 
     case PROCMODE_CHANGE_DURATION_RESET_IFG:
     case PROCMODE_CHANGE_DURATION_PRESERVE_IFG: {
-        if (m_current_pass == 0) {
+        if (IPacketProcessor::get_pass_index() == 0) {
             // in the first pass just count the number of packets to process &
             // remember the timestamp of the last packet:
             m_num_input_pkts++;
@@ -240,7 +237,7 @@ bool PacketProcessor::process_packet(const Packet& pktIn, Packet& pktOut,
     return true;
 }
 
-bool PacketProcessor::post_processing(unsigned int totNumPkts)
+bool TimestampPacketProcessor::post_processing(unsigned int totNumPkts)
 {
     switch (m_proc_mode) {
     case PROCMODE_NONE:

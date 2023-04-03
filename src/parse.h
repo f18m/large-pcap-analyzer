@@ -113,7 +113,7 @@ public:
 };
 
 //------------------------------------------------------------------------------
-// Functions
+// Packet Parsing Functions
 //------------------------------------------------------------------------------
 
 extern ParserRetCode_t get_transport_start_offset(const Packet& pkt,

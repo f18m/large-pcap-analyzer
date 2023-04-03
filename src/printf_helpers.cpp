@@ -1,8 +1,9 @@
 /*
- * large-pcap-analyzer.h
+ * printf_helpers.cpp
  *
  * Author: Francesco Montorsi
  * Website: https://github.com/f18m/large-pcap-analyzer
+ *
  *
  * LICENSE:
         This program is free software; you can redistribute it and/or modify
@@ -22,52 +23,55 @@
 
  */
 
-#ifndef LPA_H_
-#define LPA_H_
-
 //------------------------------------------------------------------------------
-// Constants
+// Includes
 //------------------------------------------------------------------------------
 
-#define KB (1024)
-#define MB (1024 * 1024)
-#define GB (1024 * 1024 * 1024)
-#define MILLION (1000000)
-#define SMALL_NUM (0.000001) // 1us
-#define MAX_SNAPLEN (65535)
-#define INVALID_FLOW_HASH (0)
+#include "printf_helpers.h"
+#include "large-pcap-analyzer.h"
 
-#if !defined(PCAP_NETMASK_UNKNOWN)
-/*
- * Value to pass to pcap_compile() as the netmask if you don't know what
- * the netmask is.
- */
-#define PCAP_NETMASK_UNKNOWN 0xffffffff
-#endif
-
-#ifndef MIN
-#define MIN(x, y) ((x) > (y) ? (y) : (x))
-#endif /*MIN*/
-
-#define LIKELY(x) __builtin_expect((x), 1)
-#define UNLIKELY(x) __builtin_expect((x), 0)
+#include <assert.h>
+#include <stdarg.h>
+#include <stdio.h>
 
 //------------------------------------------------------------------------------
-// App configuration
+// Global Functions
 //------------------------------------------------------------------------------
 
-class LPAConfig {
-public:
-    bool m_verbose = false;
-    bool m_quiet = false;
-    bool m_timestamp_analysis = false;
-    bool m_parsing_stats = false;
+void printf_verbose(const char* fmtstr, ...)
+{
+    va_list args;
+    va_start(args, fmtstr);
+    if (g_config.m_verbose) {
+        assert(!g_config.m_quiet);
+        vprintf(fmtstr, args);
+    }
+    va_end(args);
+}
 
-    // technically this is not a configuration but the status of the application...
-    // but I'm lazy and didn't create a separate global class just for this:
-    bool m_termination_requested = false;
-};
+void printf_normal(const char* fmtstr, ...)
+{
+    va_list args;
+    va_start(args, fmtstr);
+    if (!g_config.m_quiet)
+        vprintf(fmtstr, args);
+    va_end(args);
+}
 
-extern LPAConfig g_config;
+void printf_quiet(const char* fmtstr, ...)
+{
+    va_list args;
+    va_start(args, fmtstr);
+    if (g_config.m_quiet)
+        vprintf(fmtstr, args);
+    va_end(args);
+}
 
-#endif
+void printf_error(const char* fmtstr, ...)
+{
+    va_list args;
+    va_start(args, fmtstr);
+    // if (g_quiet) // even if quiet mode is ON, do print errors out
+    vfprintf(stderr, fmtstr, args);
+    va_end(args);
+}
