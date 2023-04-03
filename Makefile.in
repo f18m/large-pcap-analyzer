@@ -107,7 +107,8 @@ PROGRAMS = $(bin_PROGRAMS)
 am__dirstamp = $(am__leading_dot)dirstamp
 am_large_pcap_analyzer_OBJECTS = src/large-pcap-analyzer.$(OBJEXT) \
 	src/filter.$(OBJEXT) src/parse.$(OBJEXT) \
-	src/processor.$(OBJEXT) src/pcap_helpers.$(OBJEXT)
+	src/timestamp_pkt_processor.$(OBJEXT) \
+	src/pcap_helpers.$(OBJEXT)
 large_pcap_analyzer_OBJECTS = $(am_large_pcap_analyzer_OBJECTS)
 large_pcap_analyzer_LDADD = $(LDADD)
 AM_V_P = $(am__v_P_@AM_V@)
@@ -127,7 +128,8 @@ depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__maybe_remake_depfiles = depfiles
 am__depfiles_remade = src/$(DEPDIR)/filter.Po \
 	src/$(DEPDIR)/large-pcap-analyzer.Po src/$(DEPDIR)/parse.Po \
-	src/$(DEPDIR)/pcap_helpers.Po src/$(DEPDIR)/processor.Po
+	src/$(DEPDIR)/pcap_helpers.Po \
+	src/$(DEPDIR)/timestamp_pkt_processor.Po
 am__mv = mv -f
 CXXCOMPILE = $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
 	$(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS)
@@ -285,8 +287,23 @@ top_srcdir = @top_srcdir@
 # avoid warnings about this packet not being in GNU style:
 AUTOMAKE_OPTIONS = foreign subdir-objects
 ACLOCAL_AMFLAGS = -I m4
-large_pcap_analyzer_SOURCES = src/large-pcap-analyzer.cpp src/filter.cpp src/parse.cpp src/processor.cpp src/pcap_helpers.cpp
-large_pcap_analyzer_HDRS = src/large-pcap-analyzer.h src/filter.h src/packet.h src/parse.h src/processor.h src/pcap_helpers.h src/config.h
+large_pcap_analyzer_SOURCES = \
+	src/large-pcap-analyzer.cpp \
+	src/filter.cpp \
+	src/parse.cpp \
+	src/timestamp_pkt_processor.cpp \
+	src/pcap_helpers.cpp
+
+large_pcap_analyzer_HDRS = \
+	src/large-pcap-analyzer.h \
+	src/filter.h \
+	src/packet.h \
+	src/parse.h \
+	src/processor.h \
+	src/timestamp_pkt_processor.h \
+	src/pcap_helpers.h \
+	src/config.h
+
 all: all-am
 
 .SUFFIXES:
@@ -392,7 +409,7 @@ src/large-pcap-analyzer.$(OBJEXT): src/$(am__dirstamp) \
 src/filter.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
 src/parse.$(OBJEXT): src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
-src/processor.$(OBJEXT): src/$(am__dirstamp) \
+src/timestamp_pkt_processor.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
 src/pcap_helpers.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
@@ -412,7 +429,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/large-pcap-analyzer.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/parse.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/pcap_helpers.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/processor.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/timestamp_pkt_processor.Po@am__quote@ # am--include-marker
 
 $(am__depfiles_remade):
 	@$(MKDIR_P) $(@D)
@@ -754,7 +771,7 @@ maintainer-clean: maintainer-clean-am
 	-rm -f src/$(DEPDIR)/large-pcap-analyzer.Po
 	-rm -f src/$(DEPDIR)/parse.Po
 	-rm -f src/$(DEPDIR)/pcap_helpers.Po
-	-rm -f src/$(DEPDIR)/processor.Po
+	-rm -f src/$(DEPDIR)/timestamp_pkt_processor.Po
 	-rm -f Makefile
 maintainer-clean-am: distclean-am maintainer-clean-generic
 

@@ -5,8 +5,21 @@ AUTOMAKE_OPTIONS = foreign subdir-objects
 ACLOCAL_AMFLAGS = -I m4
 
 bin_PROGRAMS = large_pcap_analyzer
-large_pcap_analyzer_SOURCES = src/large-pcap-analyzer.cpp src/filter.cpp src/parse.cpp src/processor.cpp src/pcap_helpers.cpp
-large_pcap_analyzer_HDRS = src/large-pcap-analyzer.h src/filter.h src/packet.h src/parse.h src/processor.h src/pcap_helpers.h src/config.h
+large_pcap_analyzer_SOURCES = \
+	src/large-pcap-analyzer.cpp \
+	src/filter.cpp \
+	src/parse.cpp \
+	src/timestamp_pkt_processor.cpp \
+	src/pcap_helpers.cpp
+large_pcap_analyzer_HDRS = \
+	src/large-pcap-analyzer.h \
+	src/filter.h \
+	src/packet.h \
+	src/parse.h \
+	src/processor.h \
+	src/timestamp_pkt_processor.h \
+	src/pcap_helpers.h \
+	src/config.h
 
 check: $(bin_PROGRAMS)
 	cd test-pcaps && chmod a+x ./run_tests.sh && bash run_tests.sh

@@ -31,7 +31,7 @@
 #include "filter.h"
 #include "parse.h"
 #include "pcap_helpers.h"
-#include "processor.h"
+#include "timestamp_pkt_processor.h"
 
 #include <arpa/inet.h>
 #include <linux/tcp.h>
@@ -356,7 +356,7 @@ firstpass_process_pcap_handle_for_tcp_streams(pcap_t* pcap_handle_in,
 
 static bool process_pcap_handle(pcap_t* pcap_handle_in,
     FilterCriteria* filter, /* can be NULL */
-    PacketProcessor* processorcfg, /* can be NULL */
+    IPacketProcessor* processorcfg, /* can be NULL */
     pcap_dumper_t* pcap_dumper,
     unsigned long* nloadedOUT,
     unsigned long* nmatchingOUT)
@@ -559,7 +559,7 @@ static bool process_pcap_handle(pcap_t* pcap_handle_in,
 
 static bool process_file(const std::string& infile, const std::string& outfile,
     bool outfile_append, FilterCriteria* filter,
-    PacketProcessor* processorcfg,
+    IPacketProcessor* processorcfg,
     unsigned long* nloadedOUT,
     unsigned long* nmatchingOUT)
 {
@@ -618,15 +618,13 @@ static bool process_file(const std::string& infile, const std::string& outfile,
         printf_normal("TCP connection filtering enabled: performing first pass\n");
 
         unsigned long nvalidflows = 0;
-        if (!firstpass_process_pcap_handle_for_tcp_streams(pcap_handle_in, filter,
-                &nvalidflows))
+        if (!firstpass_process_pcap_handle_for_tcp_streams(pcap_handle_in, filter, &nvalidflows))
             return false;
 
         if (nvalidflows) {
             // second pass:
 
-            printf_normal(
-                "TCP connection filtering enabled: performing second pass\n");
+            printf_normal("TCP connection filtering enabled: performing second pass\n");
 
             // reopen infile
             pcap_close(pcap_handle_in);
@@ -638,8 +636,7 @@ static bool process_file(const std::string& infile, const std::string& outfile,
 
             printf_verbose("Analyzing PCAP file '%s'...\n", infile.c_str());
             if (st.st_size)
-                printf_verbose("The PCAP file has size %.2fGiB = %luMiB.\n",
-                    (double)st.st_size / (double)GB, st.st_size / MB);
+                printf_verbose("The PCAP file has size %.2fGiB = %luMiB.\n", (double)st.st_size / (double)GB, st.st_size / MB);
 
             if (!process_pcap_handle(pcap_handle_in, filter, processorcfg,
                     pcap_dumper, nloadedOUT, nmatchingOUT))
@@ -654,15 +651,13 @@ static bool process_file(const std::string& infile, const std::string& outfile,
         // discard ALL packets!)
         FilterCriteria* filterToUse = filter;
         if (!filter->is_some_filter_active()) {
-            printf_verbose("Packet processing operations active but no filter "
-                           "specified: processing ALL input packets\n");
+            printf_verbose("Packet processing operations active but no filter specified: processing ALL input packets\n");
             filterToUse = NULL; // disable filter-out logic
         }
 
         if (processorcfg->needs_2passes()) {
             // first pass
-            printf_normal("Packet processing operations require 2 passes: performing "
-                          "first pass\n");
+            printf_normal("Packet processing operations require 2 passes: performing first pass\n");
             unsigned long nFilteredPkts = 0;
             processorcfg->set_pass_index(0);
             if (!process_pcap_handle(pcap_handle_in, filterToUse, processorcfg, NULL,
@@ -670,8 +665,7 @@ static bool process_file(const std::string& infile, const std::string& outfile,
                 return false;
 
             if (nFilteredPkts) {
-                printf_normal("Packet processing operations require 2 passes: "
-                              "performing second pass\n");
+                printf_normal("Packet processing operations require 2 passes: performing second pass\n");
 
                 // reopen infile
                 pcap_close(pcap_handle_in);
@@ -830,7 +824,8 @@ int main(int argc, char** argv)
         return 1; // failure
     }
 
-    bool some_filter_set = !pcap_filter.empty() || !pcap_gtpu_filter.empty() || !extract_filter.empty() || !search.empty() || (valid_tcp_filter_mode != TCP_FILTER_NOT_ACTIVE);
+    bool some_filter_set = !pcap_filter.empty() || !pcap_gtpu_filter.empty() || !extract_filter.empty() || !search.empty()
+        || (valid_tcp_filter_mode != TCP_FILTER_NOT_ACTIVE);
     if (some_filter_set && outfile.empty()) {
         printf_error("A filtering option (-Y, -G, -C, -S or -T) was provided but "
                      "no output file (-w) was specified... aborting.\n");
@@ -908,7 +903,7 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    PacketProcessor processor;
+    TimestampPacketProcessor processor;
     if (!processor.prepare_processor(new_duration, preserve_ifg,
             set_timestamps)) {
         // error was already logged
@@ -918,22 +913,19 @@ int main(int argc, char** argv)
     // the last non-option arguments are the input filenames:
 
     if (optind >= argc || !argv[optind]) {
-        printf_error("Please provide at least one input PCAP file to analyze. Use "
-                     "--help for help.\n");
+        printf_error("Please provide at least one input PCAP file to analyze. Use --help for help.\n");
         return 1;
     } else if (optind == argc - 1) {
         std::string infile(argv[optind]);
 
         if (!outfile.empty() && strcmp(infile.c_str(), outfile.c_str()) == 0) {
-            printf_error("The PCAP to analyze '%s' is also the output PCAP file "
-                         "specified with -w?\n",
+            printf_error("The PCAP to analyze '%s' is also the output PCAP file  specified with -w?\n",
                 outfile.c_str());
             return 1;
         }
 
         // just 1 input file
-        if (!process_file(infile.c_str(), outfile.c_str(), append, &filter,
-                &processor, NULL, NULL))
+        if (!process_file(infile.c_str(), outfile.c_str(), append, &filter, &processor, NULL, NULL))
             return 2;
     } else {
         // more than 1 input file
@@ -942,14 +934,12 @@ int main(int argc, char** argv)
         int currfile = optind;
         for (; currfile < argc; currfile++) {
             if (!outfile.empty() && strcmp(argv[currfile], outfile.c_str()) == 0) {
-                printf_error("Skipping the PCAP '%s': it is the output PCAP file "
-                             "specified with -w\n",
+                printf_error("Skipping the PCAP '%s': it is the output PCAP file  specified with -w\n",
                     outfile.c_str());
                 continue;
             }
 
-            if (!process_file(argv[currfile], outfile.c_str(), append, &filter,
-                    &processor, &nloaded, &nmatching))
+            if (!process_file(argv[currfile], outfile.c_str(), append, &filter, &processor, &nloaded, &nmatching))
                 return 2;
             printf("\n");
 
