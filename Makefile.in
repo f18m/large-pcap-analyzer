@@ -306,6 +306,7 @@ large_pcap_analyzer_HDRS = \
 	src/parse.h \
 	src/pcap_helpers.h \
 	src/printf_helpers.h \
+	src/process_file.h \
 	src/processor.h \
 	src/timestamp_pkt_processor.h
 

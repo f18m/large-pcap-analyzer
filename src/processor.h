@@ -29,12 +29,7 @@
 // Includes
 //------------------------------------------------------------------------------
 
-#include "large-pcap-analyzer.h"
-#include "parse.h"
-
-#include <algorithm>
-#include <string>
-#include <vector>
+#include "packet.h"
 
 //------------------------------------------------------------------------------
 // IPacketProcessor
