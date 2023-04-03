@@ -65,6 +65,7 @@ static struct option g_long_options[] = {
     // misc options
     { "help", no_argument, 0, 'h' },
     { "verbose", no_argument, 0, 'v' },
+    { "version", no_argument, 0, 'V' },
     { "quiet", no_argument, 0, 'q' },
     { "timing", no_argument, 0, 't' },
     { "stats", no_argument, 0, 'p' },
@@ -86,7 +87,7 @@ static struct option g_long_options[] = {
     { 0, 0, 0, 0 }
 };
 
-#define SHORT_OPTS "hvqtpaw:Y:G:C:S:T:"
+#define SHORT_OPTS "hvVqtpaw:Y:G:C:S:T:"
 
 //------------------------------------------------------------------------------
 // Static Functions
@@ -95,12 +96,13 @@ static struct option g_long_options[] = {
 static void print_help()
 {
     printf("%s version %s, built with libpcap %s\n", PACKAGE_NAME, PACKAGE_VERSION, pcap_lib_version());
-    printf("by Francesco Montorsi, (c) 2014-2022\n");
+    printf("by Francesco Montorsi, (c) 2014-2023\n");
     printf("Usage:\n");
     printf("  %s [options] somefile.pcap ...\n", PACKAGE_NAME);
     printf("Miscellaneous options:\n");
     printf(" -h,--help                this help\n");
     printf(" -v,--verbose             be verbose\n");
+    printf(" -V,--version             print version and exit\n");
     printf(" -q,--quiet               suppress all normal output, be script-friendly\n");
     printf(" -t,--timing              provide timestamp analysis on loaded packets\n");
     printf(" -p,--stats               provide basic parsing statistics on loaded packets\n");
@@ -186,6 +188,10 @@ int main(int argc, char** argv)
         switch (opt) {
         case 'v':
             g_config.m_verbose = true;
+            break;
+        case 'V':
+            printf("%s\n", PACKAGE_VERSION);
+            exit(0);
             break;
         case 'q':
             g_config.m_quiet = true;
