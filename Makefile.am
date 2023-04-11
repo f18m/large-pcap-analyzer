@@ -12,7 +12,8 @@ large_pcap_analyzer_SOURCES = \
 	src/pcap_helpers.cpp \
 	src/printf_helpers.cpp \
 	src/process_file.cpp \
-	src/timestamp_pkt_processor.cpp
+	src/timestamp_pkt_processor.cpp \
+	src/trafficstats_pkt_processor.cpp
 large_pcap_analyzer_HDRS = \
 	src/config.h \
 	src/filter.h \
@@ -23,7 +24,8 @@ large_pcap_analyzer_HDRS = \
 	src/printf_helpers.h \
 	src/process_file.h \
 	src/processor.h \
-	src/timestamp_pkt_processor.h
+	src/timestamp_pkt_processor.h \
+	src/trafficstats_pkt_processor.h
 
 check: $(bin_PROGRAMS)
 	cd test-pcaps && chmod a+x ./run_tests.sh && bash run_tests.sh

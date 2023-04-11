@@ -68,7 +68,7 @@ public:
     bool prepare_processor(const std::string& set_duration, bool preserve_ifg,
         const std::string& timestamp_file);
 
-    bool is_some_processing_active() const
+    virtual bool is_some_processing_active() const
     {
         return m_proc_mode != PROCMODE_NONE;
     }
@@ -76,7 +76,7 @@ public:
     // to compute correctly the timestamps in --set-duration mode, we need 2
     // passes: first to find out how many packets are present in the PCAP and then
     // to actually alter timestamps:
-    virtual bool needs_2passes() const override
+    bool needs_2passes() const override
     {
         return m_proc_mode == PROCMODE_CHANGE_DURATION_RESET_IFG || m_proc_mode == PROCMODE_CHANGE_DURATION_PRESERVE_IFG;
     }

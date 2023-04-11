@@ -29,6 +29,7 @@
 // Includes
 //------------------------------------------------------------------------------
 
+#include "FastIpAddress.h"
 #include "large-pcap-analyzer.h"
 #include "packet.h"
 #include <stdint.h>
@@ -112,6 +113,16 @@ public:
     uint64_t pkts_total;
 };
 
+class ParsingInfo {
+public:
+    // identifiers of the flow:
+    FastIpAddress m_ip_src;
+    FastIpAddress m_ip_dst;
+    uint8_t m_ip_proto;
+    uint16_t m_port_src;
+    uint16_t m_port_dst;
+};
+
 //------------------------------------------------------------------------------
 // Packet Parsing Functions
 //------------------------------------------------------------------------------
@@ -120,7 +131,8 @@ extern ParserRetCode_t get_transport_start_offset(const Packet& pkt,
     int* offsetTransportOut,
     int* ipprotOut,
     int* remainingLen,
-    flow_hash_t* hash);
+    flow_hash_t* hash,
+    ParsingInfo* info);
 
 extern ParserRetCode_t get_gtpu_inner_ip_start_offset(const Packet& pkt,
     int* offsetIpInner,
@@ -133,6 +145,6 @@ extern ParserRetCode_t get_gtpu_inner_transport_start_offset(
 
 extern void update_parsing_stats(const Packet& pkt, ParsingStats& outstats);
 
-extern flow_hash_t compute_flow_hash(const Packet& pkt);
+extern flow_hash_t compute_flow_hash(const Packet& pkt, bool inner = true);
 
 #endif // PARSE_H_

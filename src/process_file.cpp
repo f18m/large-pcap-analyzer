@@ -91,7 +91,7 @@ firstpass_process_pcap_handle_for_tcp_streams(pcap_t* pcap_handle_in, FilterCrit
         if (ret != GPRC_VALID_PKT) {
             // not a GTPu packet...try treating it as non-encapsulated TCP packet:
             ParserRetCode_t ret = get_transport_start_offset(pkt, &offsetInnerTransport, &innerIpProt,
-                &len_after_transport_start, &hash);
+                &len_after_transport_start, &hash, NULL);
             if (ret != GPRC_VALID_PKT) {
                 offsetInnerTransport = 0;
                 innerIpProt = 0;

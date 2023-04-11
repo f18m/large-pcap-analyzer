@@ -34,6 +34,7 @@
 #include "printf_helpers.h"
 #include "process_file.h"
 #include "timestamp_pkt_processor.h"
+#include "trafficstats_pkt_processor.h"
 
 #include <arpa/inet.h>
 #include <linux/tcp.h>
@@ -69,6 +70,7 @@ static struct option g_long_options[] = {
     { "quiet", no_argument, 0, 'q' },
     { "timing", no_argument, 0, 't' },
     { "stats", no_argument, 0, 'p' },
+    { "trafficstats", no_argument, 0, 'x' },
     { "append", no_argument, 0, 'a' },
     { "write", required_argument, 0, 'w' },
 
@@ -106,6 +108,7 @@ static void print_help()
     printf(" -q,--quiet               suppress all normal output, be script-friendly\n");
     printf(" -t,--timing              provide timestamp analysis on loaded packets\n");
     printf(" -p,--stats               provide basic parsing statistics on loaded packets\n");
+    printf(" -x,--trafficstats        provide traffic statistics on loaded packets\n");
     printf(" -a,--append              open output file in APPEND mode instead of TRUNCATE\n");
     printf(" -w <outfile.pcap>, --write <outfile.pcap>\n");
     printf("                          where to save the PCAP containing the results of filtering/processing\n");
@@ -198,6 +201,9 @@ int main(int argc, char** argv)
             break;
         case 'p':
             g_config.m_parsing_stats = true;
+            break;
+        case 'x':
+            g_config.m_parsing_trafficstats = true;
             break;
         case 'a':
             append = true;
@@ -355,11 +361,20 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    TimestampPacketProcessor timestamp_proc;
-    if (!timestamp_proc.prepare_processor(new_duration, preserve_ifg, set_timestamps)) {
-        // error was already logged
-        return 1;
+#if 1 // GTOTODO
+    TrafficStatsPacketProcessor trafficstats_packet_proc;
+    TimestampPacketProcessor timestamp_packet_proc;
+    IPacketProcessor* pproc = nullptr;
+    if (g_config.m_parsing_trafficstats) {
+        pproc = &trafficstats_packet_proc;
+    } else if (timestamp_opts_given > 0) {
+        pproc = &timestamp_packet_proc;
+        if (!timestamp_packet_proc.prepare_processor(new_duration, preserve_ifg, set_timestamps)) {
+            // error was already logged
+            return 1;
+        }
     }
+#endif
 
     // the last non-option arguments are the input filenames:
 
@@ -376,7 +391,7 @@ int main(int argc, char** argv)
         }
 
         // just 1 input file
-        if (!process_file(infile.c_str(), outfile.c_str(), append, &filter, &timestamp_proc, NULL, NULL))
+        if (!process_file(infile.c_str(), outfile.c_str(), append, &filter, pproc, NULL, NULL))
             return 2;
     } else {
         // more than 1 input file
@@ -390,7 +405,7 @@ int main(int argc, char** argv)
                 continue;
             }
 
-            if (!process_file(argv[currfile], outfile.c_str(), append, &filter, &timestamp_proc, &nloaded, &nmatching))
+            if (!process_file(argv[currfile], outfile.c_str(), append, &filter, pproc, &nloaded, &nmatching))
                 return 2;
             printf("\n");
 
