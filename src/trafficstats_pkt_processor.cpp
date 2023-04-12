@@ -62,9 +62,6 @@ bool TrafficStatsPacketProcessor::process_packet(const Packet& pktIn, Packet& pk
 
     m_num_input_pkts++;
 
-    // Compute hash on outer only !
-    // hash = compute_flow_hash(pktIn, /*inner*/ false);
-
     // Parse the packet Info
     ParserRetCode_t ret
         = get_transport_start_offset(pktIn, NULL, NULL,
@@ -74,7 +71,7 @@ bool TrafficStatsPacketProcessor::process_packet(const Packet& pktIn, Packet& pk
     flow_map_for_traffic_stats_t::iterator itr = m_conn_map.find(hash);
     if (itr != m_conn_map.end()) {
         // This flow is already present
-        //printf_normal("TrafficStatsPacketProcessor::process_packet() - Found: %lu\n", hash);
+        //printf_normal("GTODBG: TrafficStatsPacketProcessor::process_packet() - Found: %lu\n", hash);
         itr->second.m_npackets++;
         itr->second.m_nbytes += pktIn.len();
         FlowStats = itr->second;
@@ -86,7 +83,7 @@ bool TrafficStatsPacketProcessor::process_packet(const Packet& pktIn, Packet& pk
             return false;
         }
 
-        //printf_normal("TrafficStatsPacketProcessor::process_packet() - Insert: %lu\n", hash);
+        //printf_normal("GTODBG: TrafficStatsPacketProcessor::process_packet() - Insert: %lu\n", hash);
         FlowStats.m_FlowHash = hash;
         FlowStats.m_npackets = 1;
         FlowStats.m_nbytes = pktIn.len();
@@ -101,9 +98,6 @@ bool TrafficStatsPacketProcessor::process_packet(const Packet& pktIn, Packet& pk
 #endif
     }
 
-    // Stats update
-    //printf_normal("Total number of loaded packets: %lu/%d\n", FlowStats.m_npackets, m_conn_map.size());
-
     // no change to input
     pktOut = pktIn;
 
@@ -112,39 +106,39 @@ bool TrafficStatsPacketProcessor::process_packet(const Packet& pktIn, Packet& pk
 
 bool TrafficStatsPacketProcessor::post_processing(unsigned int /* totNumPkts */)
 {
+    int conn_top_num = 0;
 
     // Here we need to create a new temp map to sort the connection based on number of packets (Descending order)
-    std::map<uint64_t, FlowStats_t, std::greater<int>> temp;
+    std::multimap<uint64_t, FlowStats_t, std::greater<int>> temp;
 
-    // TODO: FIXME: the table below will discard the FLOWS with the same number of packets?!?!
     for (auto conn : m_conn_map) {
         temp.insert(std::pair<uint64_t, FlowStats_t>(conn.second.m_npackets, conn.second));
     }
 
-    printf_normal("----------------------------------------------------------------------\n");
-    printf_normal("Total number of Packets/Flows: %d/%d/%d\n", m_num_input_pkts, m_conn_map.size(), temp.size());
-    printf_normal("----------------------------------------------------------------------\n");
+    printf_normal("------------------------------------------------------------------------------------------\n");
+    printf_normal("Total number of Packets/Flows: %d/%d\n", m_num_input_pkts, m_conn_map.size());
+    printf_normal("------------------------------------------------------------------------------------------\n");
 
     // read first N entries of "temp"
-    printf_normal("nPkts, FlowHash, ip_src, ip_dst, ip_proto, port_src, port_dst \n");
-    printf_normal("----------------------------------------------------------------------\n");
-    int topn = 0;
+    printf_normal("Num,nPkts,%Pkts,FlowHash,ip_src,ip_dst,ip_proto,port_src,port_dst\n");
+    printf_normal("------------------------------------------------------------------------------------------\n");
+
     for (auto conn_top : temp) {
+        double pkt_percentage = ((double)(conn_top.first) / m_num_input_pkts) * 100;
 
-        printf_normal("%lu, %lu, "
-                      "%s, %s, "
-                      "%d, "
-                      "%d, %d \n",
-            conn_top.first,
+        printf_normal("%d,%lu,%.2f%,%lu,%s,%s,%d,%d,%d\n",
+            conn_top_num, conn_top.first, pkt_percentage,
             conn_top.second.m_FlowHash,
-            conn_top.second.m_FlowInfo.m_ip_src.toString().c_str(), conn_top.second.m_FlowInfo.m_ip_dst.toString().c_str(),
+            conn_top.second.m_FlowInfo.m_ip_src.toString().c_str(),
+            conn_top.second.m_FlowInfo.m_ip_dst.toString().c_str(),
             conn_top.second.m_FlowInfo.m_ip_proto,
-            conn_top.second.m_FlowInfo.m_port_src, conn_top.second.m_FlowInfo.m_port_dst);
+            conn_top.second.m_FlowInfo.m_port_src,
+            conn_top.second.m_FlowInfo.m_port_dst);
 
-        topn++;
-        if (topn > 10)
+        if (++conn_top_num >= 10)
             break;
     }
+    printf_normal("------------------------------------------------------------------------------------------\n");
 
     return true;
 }

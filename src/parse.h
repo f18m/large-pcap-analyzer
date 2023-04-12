@@ -145,6 +145,6 @@ extern ParserRetCode_t get_gtpu_inner_transport_start_offset(
 
 extern void update_parsing_stats(const Packet& pkt, ParsingStats& outstats);
 
-extern flow_hash_t compute_flow_hash(const Packet& pkt, bool inner = true);
+extern flow_hash_t compute_flow_hash(const Packet& pkt);
 
 #endif // PARSE_H_
