@@ -213,8 +213,8 @@ do_transport_layer_parse(const Packet& pkt, int ipStartOffset, int ipver,
             *hashPorts += flow_hash;
 
             if (info) {
-                info->m_port_src = tcp->source;
-                info->m_port_dst = tcp->dest;
+                info->m_port_src = ntohs(tcp->source);
+                info->m_port_dst = ntohs(tcp->dest);
             }
         }
         break;
@@ -227,8 +227,8 @@ do_transport_layer_parse(const Packet& pkt, int ipStartOffset, int ipver,
             *hashPorts += flow_hash;
 
             if (info) {
-                info->m_port_src = udp->source;
-                info->m_port_dst = udp->dest;
+                info->m_port_src = ntohs(udp->source);
+                info->m_port_dst = ntohs(udp->dest);
             }
         }
         break;
