@@ -104,6 +104,7 @@ bool TrafficStatsPacketProcessor::post_processing(unsigned int /* totNumPkts */)
     }
 
     // read first 10 entries of "temp"
+    printf_normal("nPkts, FlowHash, ip_src, ip_dst, ip_proto, port_src, port_dst \n");
     for (auto conn_top : temp) {
 
         printf_normal(" %lu, %lu, %lu, %lu, %d, %d, %d \n", conn_top.first, conn_top.second.m_FlowHash, conn_top.second.m_FlowInfo.m_ip_src, conn_top.second.m_FlowInfo.m_ip_dst, conn_top.second.m_FlowInfo.m_ip_proto, conn_top.second.m_FlowInfo.m_port_src, conn_top.second.m_FlowInfo.m_port_dst);

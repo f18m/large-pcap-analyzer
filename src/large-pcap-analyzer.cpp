@@ -361,20 +361,18 @@ int main(int argc, char** argv)
         return 1;
     }
 
-#if 1 // GTOTODO
     TrafficStatsPacketProcessor trafficstats_packet_proc;
     TimestampPacketProcessor timestamp_packet_proc;
     IPacketProcessor* pproc = nullptr;
     if (g_config.m_parsing_trafficstats) {
         pproc = &trafficstats_packet_proc;
-    } else if (timestamp_opts_given > 0) {
+    } else {
         pproc = &timestamp_packet_proc;
         if (!timestamp_packet_proc.prepare_processor(new_duration, preserve_ifg, set_timestamps)) {
             // error was already logged
             return 1;
         }
     }
-#endif
 
     // the last non-option arguments are the input filenames:
 

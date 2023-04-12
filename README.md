@@ -67,6 +67,7 @@ For developers: link to [Snapcraft page for large PCAP analyzer](https://build.s
 	 -q,--quiet               suppress all normal output, be script-friendly
 	 -t,--timing              provide timestamp analysis on loaded packets
 	 -p,--stats               provide basic parsing statistics on loaded packets
+	 -x,--trafficstats        provide traffic statistics on loaded packets
 	 -a,--append              open output file in APPEND mode instead of TRUNCATE
 	 -w <outfile.pcap>, --write <outfile.pcap>
 	                          where to save the PCAP containing the results of filtering/processing
