@@ -27,6 +27,7 @@
 //------------------------------------------------------------------------------
 
 #include "parse.h"
+#include "SCTPdefs.h"
 
 #include <netinet/if_ether.h> /* includes net/ethernet.h */
 #include <netinet/in.h>
@@ -35,7 +36,7 @@
 
 #include <arpa/inet.h>
 
-#include <linux/sctp.h>
+//#include <linux/sctp.h>
 #include <linux/tcp.h>
 #include <linux/udp.h>
 
@@ -232,12 +233,20 @@ do_transport_layer_parse(const Packet& pkt, int ipStartOffset, int ipver,
             }
         }
         break;
-#if 0 // TODO: Add SCTP 
     case IPPROTO_SCTP:
-		if (UNLIKELY( pkt.len() < (transportStartOffset + sizeof(struct sctphdr))))
-			return GPRC_TOO_SHORT_PKT;		// Packet too short
+        if (UNLIKELY(pkt.len() < (transportStartOffset + sizeof(struct sctphdr))))
+            return GPRC_TOO_SHORT_PKT; // Packet too short
+        if (UNLIKELY(hashPorts != NULL)) {
+            const struct sctphdr* sctp = (const struct sctphdr*)(pkt.data() + transportStartOffset);
+            uint64_t flow_hash = FastHash64((const char*)&sctp->source, sizeof(sctp->source), 0) + FastHash64((const char*)&sctp->dest, sizeof(sctp->dest), 0);
+            *hashPorts += flow_hash;
+
+            if (info != NULL) {
+                info->m_port_src = ntohs(sctp->source);
+                info->m_port_dst = ntohs(sctp->dest);
+            }
+        }
         break;
-#endif
     default:
         break;
     }
@@ -318,10 +327,11 @@ ParserRetCode_t get_transport_start_offset(const Packet& pkt,
 ParserRetCode_t get_gtpu_inner_ip_start_offset(const Packet& pkt,
     int* offsetIpInner, int* ipver,
     int* remainingLen,
-    flow_hash_t* hash)
+    flow_hash_t* hash,
+    ParsingInfo* info)
 {
     int offset = 0, ip_prot = 0;
-    ParserRetCode_t ret = get_transport_start_offset(pkt, &offset, &ip_prot, NULL, hash, NULL);
+    ParserRetCode_t ret = get_transport_start_offset(pkt, &offset, &ip_prot, NULL, hash, info);
     if (UNLIKELY(ret != GPRC_VALID_PKT))
         return ret;
     if (UNLIKELY(ip_prot != IPPROTO_UDP))
@@ -395,11 +405,12 @@ ParserRetCode_t get_gtpu_inner_transport_start_offset(const Packet& pkt,
     int* offsetTransportInner,
     int* ipprotInner,
     int* remainingLen,
-    flow_hash_t* hash)
+    flow_hash_t* hash,
+    ParsingInfo* info)
 {
     int ipStartOffset = 0, ipver = 0, len_after_ip_start = 0;
     ParserRetCode_t ret = get_gtpu_inner_ip_start_offset(
-        pkt, &ipStartOffset, &ipver, &len_after_ip_start, hash);
+        pkt, &ipStartOffset, &ipver, &len_after_ip_start, hash, info);
     if (UNLIKELY(ret != GPRC_VALID_PKT))
         return ret;
 
@@ -421,14 +432,14 @@ void update_parsing_stats(const Packet& pkt, ParsingStats& outstats)
 
     // TODO: this way to do the stats is pretty much non-efficient:
 
-    ret = get_gtpu_inner_transport_start_offset(pkt, NULL, NULL, NULL, NULL);
+    ret = get_gtpu_inner_transport_start_offset(pkt, NULL, NULL, NULL, NULL, NULL);
     if (ret == GPRC_VALID_PKT) {
         outstats.pkts_valid_gtpu_transport++;
         return;
     }
     // else: try to parse inner layers
 
-    ret = get_gtpu_inner_ip_start_offset(pkt, NULL, NULL, NULL, NULL);
+    ret = get_gtpu_inner_ip_start_offset(pkt, NULL, NULL, NULL, NULL, NULL);
     if (ret == GPRC_VALID_PKT) {
         outstats.pkts_valid_gtpu_ip++;
         return;
@@ -464,7 +475,7 @@ flow_hash_t compute_flow_hash(const Packet& pkt)
 
     // detect if this is an encapsulated packet or not
     ret = get_gtpu_inner_transport_start_offset(
-        pkt, &offsetTransport, &ip_prot, NULL, &flow_hash);
+        pkt, &offsetTransport, &ip_prot, NULL, &flow_hash, NULL);
     if (ret == GPRC_VALID_PKT) {
 #if 0
 		ret = get_gtpu_inner_transport_start_offset(pkt, &offsetTransport, &ip_prot, NULL);

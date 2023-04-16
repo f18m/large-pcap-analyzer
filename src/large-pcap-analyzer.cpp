@@ -70,7 +70,8 @@ static struct option g_long_options[] = {
     { "quiet", no_argument, 0, 'q' },
     { "timing", no_argument, 0, 't' },
     { "stats", no_argument, 0, 'p' },
-    { "trafficstats", no_argument, 0, 'x' },
+    { "traffic", optional_argument, 0, 'x' },
+    { "inner", no_argument, 0, 'i' },
     { "append", no_argument, 0, 'a' },
     { "write", required_argument, 0, 'w' },
 
@@ -89,7 +90,7 @@ static struct option g_long_options[] = {
     { 0, 0, 0, 0 }
 };
 
-#define SHORT_OPTS "hvVqtpaw:Y:G:C:S:T:"
+#define SHORT_OPTS "hvVqtpx::iaw:Y:G:C:S:T:"
 
 //------------------------------------------------------------------------------
 // Static Functions
@@ -108,7 +109,9 @@ static void print_help()
     printf(" -q,--quiet               suppress all normal output, be script-friendly\n");
     printf(" -t,--timing              provide timestamp analysis on loaded packets\n");
     printf(" -p,--stats               provide basic parsing statistics on loaded packets\n");
-    printf(" -x,--trafficstats        provide traffic statistics on loaded packets\n");
+    printf(" -x,--trafficstats<FlowNum>\n");
+    printf("                          provide traffic statistics on loaded packets\n");
+    printf(" -i,--inner               provide traffic statistics on inner\n");
     printf(" -a,--append              open output file in APPEND mode instead of TRUNCATE\n");
     printf(" -w <outfile.pcap>, --write <outfile.pcap>\n");
     printf("                          where to save the PCAP containing the results of filtering/processing\n");
@@ -203,7 +206,12 @@ int main(int argc, char** argv)
             g_config.m_parsing_stats = true;
             break;
         case 'x':
+            if (optarg)
+                g_config.m_topflow_max = atoi(optarg);
             g_config.m_parsing_trafficstats = true;
+            break;
+        case 'i':
+            g_config.m_inner = true;
             break;
         case 'a':
             append = true;
@@ -366,6 +374,10 @@ int main(int argc, char** argv)
     IPacketProcessor* pproc = nullptr;
     if (g_config.m_parsing_trafficstats) {
         pproc = &trafficstats_packet_proc;
+        if (!trafficstats_packet_proc.prepare_processor(g_config.m_inner, g_config.m_topflow_max)) {
+            // error was already logged
+            return 1;
+        }
     } else {
         pproc = &timestamp_packet_proc;
         if (!timestamp_packet_proc.prepare_processor(new_duration, preserve_ifg, set_timestamps)) {

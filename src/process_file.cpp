@@ -87,7 +87,7 @@ firstpass_process_pcap_handle_for_tcp_streams(pcap_t* pcap_handle_in, FilterCrit
             len_after_transport_start = 0;
         ParserRetCode_t ret = get_gtpu_inner_transport_start_offset(
             pkt, &offsetInnerTransport, &innerIpProt, &len_after_transport_start,
-            &hash);
+            &hash, NULL);
         if (ret != GPRC_VALID_PKT) {
             // not a GTPu packet...try treating it as non-encapsulated TCP packet:
             ParserRetCode_t ret = get_transport_start_offset(pkt, &offsetInnerTransport, &innerIpProt,
@@ -216,7 +216,7 @@ firstpass_process_pcap_handle_for_tcp_streams(pcap_t* pcap_handle_in, FilterCrit
     return true;
 }
 
-static bool process_pcap_handle(pcap_t* pcap_handle_in,
+static bool process_pcap_handle(const std::string& infile, pcap_t* pcap_handle_in,
     FilterCriteria* filter, /* can be NULL */
     IPacketProcessor* processorcfg, /* can be NULL */
     pcap_dumper_t* pcap_dumper,
@@ -315,7 +315,7 @@ static bool process_pcap_handle(pcap_t* pcap_handle_in,
     }
 
     if (processorcfg) {
-        if (!processorcfg->post_processing(nloaded))
+        if (!processorcfg->post_processing(infile.c_str(), nloaded))
             return false;
     }
 
@@ -499,7 +499,7 @@ bool process_file(
             if (st.st_size)
                 printf_verbose("The PCAP file has size %.2fGiB = %luMiB.\n", (double)st.st_size / (double)GB, st.st_size / MB);
 
-            if (!process_pcap_handle(pcap_handle_in, filter, processorcfg, pcap_dumper, nloadedOUT, nmatchingOUT))
+            if (!process_pcap_handle(infile.c_str(), pcap_handle_in, filter, processorcfg, pcap_dumper, nloadedOUT, nmatchingOUT))
                 return false;
         } else {
             return false;
@@ -520,7 +520,7 @@ bool process_file(
             printf_normal("Packet processing operations require 2 passes: performing first pass\n");
             unsigned long nFilteredPkts = 0;
             processorcfg->set_pass_index(0);
-            if (!process_pcap_handle(pcap_handle_in, filterToUse, processorcfg, NULL, NULL, &nFilteredPkts))
+            if (!process_pcap_handle(infile.c_str(), pcap_handle_in, filterToUse, processorcfg, NULL, NULL, &nFilteredPkts))
                 return false;
 
             if (nFilteredPkts) {
@@ -536,13 +536,13 @@ bool process_file(
 
                 // re-process this time with PROCESSOR and OUTPUT DUMPER active!
                 processorcfg->set_pass_index(1);
-                if (!process_pcap_handle(pcap_handle_in, filterToUse, processorcfg, pcap_dumper, nloadedOUT, nmatchingOUT))
+                if (!process_pcap_handle(infile.c_str(), pcap_handle_in, filterToUse, processorcfg, pcap_dumper, nloadedOUT, nmatchingOUT))
                     return false;
             }
         } else {
             // standard mode (no -T option)
 
-            if (!process_pcap_handle(pcap_handle_in, filterToUse, processorcfg, pcap_dumper, nloadedOUT, nmatchingOUT))
+            if (!process_pcap_handle(infile.c_str(), pcap_handle_in, filterToUse, processorcfg, pcap_dumper, nloadedOUT, nmatchingOUT))
                 return false;
         }
     }

@@ -49,53 +49,62 @@
 // TrafficStatsPacketProcessor
 //------------------------------------------------------------------------------
 
-bool TrafficStatsPacketProcessor::prepare_processor()
+bool TrafficStatsPacketProcessor::prepare_processor(bool inner, int topflow_max)
 {
+    m_inner = inner;
+    m_topflow_max = topflow_max;
     return true;
 }
 
-bool TrafficStatsPacketProcessor::process_packet(const Packet& pktIn, Packet& pktOut, unsigned int, bool&)
+bool TrafficStatsPacketProcessor::process_packet(const Packet& pktIn, Packet& pktOut, unsigned int pktIdx, bool& pktWasChangedOut)
 {
+    (void)pktIdx;
+    (void)pktWasChangedOut;
+    ParserRetCode_t ret = GPRC_NOT_GTPU_PKT;
     FlowStats_t FlowStats;
-    flow_hash_t hash;
-    memset(&FlowStats, 0, sizeof(FlowStats));
+    flow_hash_t hash = 0;
+    int offsetTransport = 0, ip_prot = 0, offsetInnerTransport = 0;
 
     m_num_input_pkts++;
 
-    // Parse the packet Info
-    ParserRetCode_t ret
-        = get_transport_start_offset(pktIn, NULL, NULL,
-            NULL, &hash, &FlowStats.m_FlowInfo);
+    // compute_flow_hash
+    if (m_inner) {
+        // detect if this is an encapsulated packet or not
+        ret = get_gtpu_inner_transport_start_offset(
+            pktIn, &offsetTransport, &ip_prot, &offsetInnerTransport, &hash, &FlowStats.m_FlowInfo);
+    }
+
+    if (ret == GPRC_NOT_GTPU_PKT) {
+        ret = get_transport_start_offset(pktIn, &offsetTransport, &ip_prot, NULL,
+            &hash, &FlowStats.m_FlowInfo);
+    }
+
+#if 0 // GTOTODO: Sometime the inner packet fails here !!!!
+    if (UNLIKELY(ret != GPRC_VALID_PKT))
+        return false;
+#endif
 
     // Flow Lookup
     flow_map_for_traffic_stats_t::iterator itr = m_conn_map.find(hash);
     if (itr != m_conn_map.end()) {
         // This flow is already present
-        //printf_normal("GTODBG: TrafficStatsPacketProcessor::process_packet() - Found: %lu\n", hash);
         itr->second.m_npackets++;
         itr->second.m_nbytes += pktIn.len();
         FlowStats = itr->second;
     } else {
         // This is the first packet of the flaw
 
+#if 0 // GTOTODO: Sometime the inner packet fails here !!!!
         if (UNLIKELY(ret != GPRC_VALID_PKT)) {
             printf_error("TrafficStatsPacketProcessor::process_packet() - Invalid Packet");
             return false;
         }
+#endif
 
-        //printf_normal("GTODBG: TrafficStatsPacketProcessor::process_packet() - Insert: %lu\n", hash);
         FlowStats.m_FlowHash = hash;
         FlowStats.m_npackets = 1;
         FlowStats.m_nbytes = pktIn.len();
         m_conn_map.insert(std::make_pair(hash, FlowStats));
-
-#if 0
-        printf_normal("GTODBG: %lu, %lu, %lu, %d, %d, %d \n", FlowStats.m_FlowHash, FlowStats.m_FlowInfo.m_ip_src, FlowStats.m_FlowInfo.m_port_dst, FlowStats.m_FlowInfo.m_ip_proto, FlowStats.m_FlowInfo.m_port_src, FlowStats.m_FlowInfo.m_port_dst);
-        printf_normal("GTODBG: %lu, %lu\n", FlowStats.m_FlowInfo.m_ip_src, FlowStats.m_FlowInfo.m_ip_dst);
-        printf_normal("GTODBG: %lu, %lu, %lu\n", FlowStats.m_FlowHash, FlowStats.m_FlowInfo.m_ip_src, FlowStats.m_FlowInfo.m_ip_dst);
-
-        exit(0);
-#endif
     }
 
     // no change to input
@@ -104,41 +113,72 @@ bool TrafficStatsPacketProcessor::process_packet(const Packet& pktIn, Packet& pk
     return true;
 }
 
-bool TrafficStatsPacketProcessor::post_processing(unsigned int /* totNumPkts */)
+bool TrafficStatsPacketProcessor::post_processing(const std::string& infile, unsigned int /* totNumPkts */)
 {
-    int conn_top_num = 0;
+    int flow_id = 0;
+    std::string csv_header = "Num,nPkts,%Pkts,FlowHash,ip_src,ip_dst,ip_proto,port_src,port_dst"; // infile
 
-    // Here we need to create a new temp map to sort the connection based on number of packets (Descending order)
+    // Create a new temp map to sort the connection based on number of packets (Descending order)
     std::multimap<uint64_t, FlowStats_t, std::greater<int>> temp;
-
     for (auto conn : m_conn_map) {
         temp.insert(std::pair<uint64_t, FlowStats_t>(conn.second.m_npackets, conn.second));
     }
 
-    printf_normal("------------------------------------------------------------------------------------------\n");
-    printf_normal("Total number of Packets/Flows: %d/%d\n", m_num_input_pkts, m_conn_map.size());
-    printf_normal("------------------------------------------------------------------------------------------\n");
+    // Open the CSV output file
+    const auto outfile = infile + ".csv";
+    std::ofstream fout(outfile);
+    if (!fout)
+        printf_error("Error opening the output file [%s]: %s\n", outfile.c_str(), strerror(errno));
 
-    // read first N entries of "temp"
-    printf_normal("Num,nPkts,%Pkts,FlowHash,ip_src,ip_dst,ip_proto,port_src,port_dst\n");
+    // Print first TOP N entries of "temp"
+    printf_normal("------------------------------------------------------------------------------------------\n");
+    printf_normal("Input file: %s - Total number of Packets/Flows: %d/%d\n", infile.c_str(), m_num_input_pkts, m_conn_map.size());
     printf_normal("------------------------------------------------------------------------------------------\n");
 
     for (auto conn_top : temp) {
         double pkt_percentage = ((double)(conn_top.first) / m_num_input_pkts) * 100;
 
-        printf_normal("%d,%lu,%.2f%,%lu,%s,%s,%d,%d,%d\n",
-            conn_top_num, conn_top.first, pkt_percentage,
-            conn_top.second.m_FlowHash,
-            conn_top.second.m_FlowInfo.m_ip_src.toString().c_str(),
-            conn_top.second.m_FlowInfo.m_ip_dst.toString().c_str(),
-            conn_top.second.m_FlowInfo.m_ip_proto,
-            conn_top.second.m_FlowInfo.m_port_src,
-            conn_top.second.m_FlowInfo.m_port_dst);
+        // Print first TOP N entries of "temp"
+        if (flow_id == 0) {
+            printf_normal("%s\n", csv_header.c_str());
+            printf_normal("------------------------------------------------------------------------------------------\n");
+        }
+        if (flow_id < m_topflow_max || m_topflow_max == 0) {
+            printf_normal("%d,%lu,%.2f%,%lu,%s,%s,%d,%d,%d\n", // ,%s
+                flow_id, conn_top.first,
+                pkt_percentage,
+                conn_top.second.m_FlowHash,
+                conn_top.second.m_FlowInfo.m_ip_src.toString().c_str(),
+                conn_top.second.m_FlowInfo.m_ip_dst.toString().c_str(),
+                conn_top.second.m_FlowInfo.m_ip_proto,
+                conn_top.second.m_FlowInfo.m_port_src,
+                conn_top.second.m_FlowInfo.m_port_dst);
+            //infile.c_str());
+        }
 
-        if (++conn_top_num >= 10)
-            break;
+        //  Write the full list in a csv file.
+        if (fout) {
+            if (flow_id == 0)
+                fout << csv_header << std::endl;
+            fout << flow_id << ",";
+            fout << conn_top.first << ",";
+            fout << pkt_percentage << ",";
+            fout << conn_top.second.m_FlowHash << ",";
+            fout << conn_top.second.m_FlowInfo.m_ip_src.toString().c_str() << ",";
+            fout << conn_top.second.m_FlowInfo.m_ip_dst.toString().c_str() << ",";
+            fout << (int)conn_top.second.m_FlowInfo.m_ip_proto << ",";
+            fout << conn_top.second.m_FlowInfo.m_port_src << ",";
+            fout << conn_top.second.m_FlowInfo.m_port_dst << ",";
+            //fout << infile.c_str() << ",";
+            fout << std::endl;
+        }
+        flow_id++;
     }
     printf_normal("------------------------------------------------------------------------------------------\n");
+
+    // Clear current stats/map
+    m_num_input_pkts = 0;
+    m_conn_map.clear();
 
     return true;
 }

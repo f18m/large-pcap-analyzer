@@ -51,10 +51,10 @@ class FlowStats_t {
 public:
     // identifiers of the flow:
     ParsingInfo m_FlowInfo;
-    flow_hash_t m_FlowHash;
+    flow_hash_t m_FlowHash = 0;
     // stats about this flow:
-    uint64_t m_npackets;
-    uint64_t m_nbytes;
+    uint64_t m_npackets = 0;
+    uint64_t m_nbytes = 0;
 };
 
 typedef std::unordered_map<flow_hash_t /* key */, FlowStats_t /* value */>
@@ -70,14 +70,16 @@ public:
 
     ~TrafficStatsPacketProcessor() { }
 
-    bool prepare_processor();
+    bool prepare_processor(bool inner, int topflow_max);
 
     // does
     virtual bool process_packet(const Packet& pktIn, Packet& pktOut, unsigned int pktIdx, bool& pktWasChangedOut) override;
-    virtual bool post_processing(unsigned int totNumPkts) override;
+    virtual bool post_processing(const std::string& file, unsigned int totNumPkts) override;
 
 private:
     // configuration:
+    bool m_inner;
+    int m_topflow_max;
 
     // status:
     unsigned long m_num_input_pkts;

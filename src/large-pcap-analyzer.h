@@ -62,7 +62,10 @@ public:
     bool m_quiet = false;
     bool m_timestamp_analysis = false;
     bool m_parsing_stats = false;
+
     bool m_parsing_trafficstats = false;
+    bool m_inner = false;
+    int m_topflow_max = 3;
 
     // technically this is not a configuration but the status of the application...
     // but I'm lazy and didn't create a separate global class just for this:

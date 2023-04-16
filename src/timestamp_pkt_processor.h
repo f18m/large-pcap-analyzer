@@ -84,7 +84,7 @@ public:
     // does
     virtual bool process_packet(const Packet& pktIn, Packet& pktOut, unsigned int pktIdx, bool& pktWasChangedOut) override;
 
-    virtual bool post_processing(unsigned int totNumPkts) override;
+    virtual bool post_processing(const std::string& file, unsigned int totNumPkts) override;
 
 private:
     // configuration:
