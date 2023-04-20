@@ -27,6 +27,7 @@
 //------------------------------------------------------------------------------
 
 #include "filter.h"
+#include "pcap_helpers.h"
 #include "printf_helpers.h"
 
 #include <arpa/inet.h>
@@ -164,32 +165,24 @@ bool FilterCriteria::prepare_filter(const std::string& pcap_filter_str,
 {
     // PCAP filter
     if (!pcap_filter_str.empty()) {
-        if (pcap_compile_nopcap(MAX_SNAPLEN, DLT_EN10MB, &m_capture_filter,
-                pcap_filter_str.c_str(), 0 /* optimize */,
-                PCAP_NETMASK_UNKNOWN)
-            != 0) {
+        if (pcap_compile_bpf(&m_capture_filter, pcap_filter_str.c_str()) != 0) {
             printf_error("Cannot parse PCAP filter: %s\n", pcap_filter_str.c_str());
             return false;
         }
 
         m_capture_filter_set = true;
-        printf_verbose("Successfully compiled PCAP filter: %s\n",
-            pcap_filter_str.c_str());
+        printf_verbose("Successfully compiled PCAP filter: %s\n", pcap_filter_str.c_str());
     }
     // GTPu PCAP filter
     if (!gtpu_filter_str.empty()) {
 
-        if (pcap_compile_nopcap(MAX_SNAPLEN, DLT_EN10MB, &m_gtpu_filter,
-                gtpu_filter_str.c_str(), 0 /* optimize */,
-                PCAP_NETMASK_UNKNOWN)
-            != 0) {
+        if (pcap_compile_bpf(&m_gtpu_filter, gtpu_filter_str.c_str()) != 0) {
             printf_error("Cannot parse GTPu filter: %s\n", gtpu_filter_str.c_str());
             return false;
         }
 
         m_gtpu_filter_set = true;
-        printf_verbose("Successfully compiled GTPu PCAP filter: %s\n",
-            gtpu_filter_str.c_str());
+        printf_verbose("Successfully compiled GTPu PCAP filter: %s\n", gtpu_filter_str.c_str());
     }
     // other filters:
     m_string_filter = str_filter;

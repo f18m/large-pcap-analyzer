@@ -47,4 +47,9 @@
 
 pcap_dumper_t* pcap_dump_append(pcap_t* pcap, const char* filename);
 
+// NOTE: apparently pcap_compile_nopcap() got deprecated six months ago in libpcap v1.11.0:
+//    https://github.com/the-tcpdump-group/libpcap/blob/753dc6beddea935c4f0365c3e8634b44db527a82/CHANGES#L19
+// so we provide our own substitution (also featuring simplified argument list)
+int pcap_compile_bpf(struct bpf_program* program, const char* buf);
+
 #endif // PCAP_HELPERS_H_

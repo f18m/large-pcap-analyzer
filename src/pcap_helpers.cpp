@@ -119,22 +119,17 @@ error_return:
     return NULL;
 }
 
-/*
-int pcap_compile_nopcap_with_err(int snaplen_arg, int linktype_arg,
-                struct bpf_program *program,
-                const char *buf, int optimize, bpf_u_int32 mask,
-                )
+int pcap_compile_bpf(struct bpf_program* program, const char* buf)
 {
-        // --- code taken from pcap_compile_nopcap() implementation in
-libpcap/gencode.c: --- pcap_t *p; int ret;
+    pcap_t* p;
+    int ret;
 
-        p = pcap_open_dead(DLT_EN10MB, MAX_SNAPLEN);
-        if (p == NULL)
-        {
-                return -1;
-        }
+    p = pcap_open_dead(DLT_EN10MB, MAX_SNAPLEN);
+    if (p == NULL) {
+        return -1;
+    }
 
-        ret = pcap_compile(p, program, buf, optimize, mask);
-        pcap_close(p);
-        return ret;
-}*/
+    ret = pcap_compile(p, program, buf, 0 /* optimize */, PCAP_NETMASK_UNKNOWN /* process packet from any network */);
+    pcap_close(p);
+    return ret;
+}
