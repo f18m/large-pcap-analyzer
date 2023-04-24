@@ -27,7 +27,6 @@
 //------------------------------------------------------------------------------
 
 #include "parse.h"
-#include "SCTPdefs.h"
 
 #include <netinet/if_ether.h> /* includes net/ethernet.h */
 #include <netinet/in.h>

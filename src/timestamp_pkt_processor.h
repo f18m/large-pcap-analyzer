@@ -76,7 +76,7 @@ public:
     // to compute correctly the timestamps in --set-duration mode, we need 2
     // passes: first to find out how many packets are present in the PCAP and then
     // to actually alter timestamps:
-    bool needs_2passes() const override
+    virtual bool needs_2passes() const override
     {
         return m_proc_mode == PROCMODE_CHANGE_DURATION_RESET_IFG || m_proc_mode == PROCMODE_CHANGE_DURATION_PRESERVE_IFG;
     }

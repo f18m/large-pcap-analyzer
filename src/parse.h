@@ -29,7 +29,7 @@
 // Includes
 //------------------------------------------------------------------------------
 
-#include "FastIpAddress.h"
+#include "ipaddress.h"
 #include "large-pcap-analyzer.h"
 #include "packet.h"
 #include <stdint.h>
@@ -116,8 +116,8 @@ public:
 class ParsingInfo {
 public:
     // identifiers of the flow:
-    FastIpAddress m_ip_src;
-    FastIpAddress m_ip_dst;
+    IpAddress m_ip_src;
+    IpAddress m_ip_dst;
     uint8_t m_ip_proto = 0;
     uint16_t m_port_src = 0;
     uint16_t m_port_dst = 0;

@@ -315,7 +315,7 @@ static bool process_pcap_handle(const std::string& infile, pcap_t* pcap_handle_i
     }
 
     if (processorcfg) {
-        if (!processorcfg->post_processing(infile.c_str(), nloaded))
+        if (!processorcfg->post_processing(infile, nloaded))
             return false;
     }
 

@@ -91,6 +91,16 @@ struct gtp1_header { /* According to 3GPP TS 29.060. */
     __be32 tid;
 } __attribute__((packed));
 
+/*
+ * Header repeated only once just after IP frame
+ */
+typedef struct sctphdr {
+    uint16_t source;
+    uint16_t dest;
+    uint32_t vtag;
+    uint32_t checksum;
+} __attribute__((packed)) sctp_sctphdr_t; // 12B
+
 //------------------------------------------------------------------------------
 // Packet
 //------------------------------------------------------------------------------
