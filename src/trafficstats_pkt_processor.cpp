@@ -138,12 +138,12 @@ bool TrafficStatsPacketProcessor::post_processing(const std::string& infile, uns
     for (auto conn_top : temp) {
         double pkt_percentage = ((double)(conn_top.first) / m_num_input_pkts) * 100;
 
-        // Print first TOP N entries of "temp"
-        if (flow_id == 0) {
-            printf_normal("%s\n", csv_header.c_str());
-            printf_normal("------------------------------------------------------------------------------------------\n");
-        }
         if (flow_id < m_topflow_max || m_topflow_max == 0) {
+            // PRINT first TOP N entries of "temp" on console
+            if (flow_id == 0) {
+                printf_normal("%s\n", csv_header.c_str());
+                printf_normal("------------------------------------------------------------------------------------------\n");
+            }
             printf_normal("%d,%lu,%.2f%,%lu,%s,%s,%d,%d,%d\n", // ,%s
                 flow_id, conn_top.first,
                 pkt_percentage,
@@ -154,23 +154,24 @@ bool TrafficStatsPacketProcessor::post_processing(const std::string& infile, uns
                 conn_top.second.m_FlowInfo.m_port_src,
                 conn_top.second.m_FlowInfo.m_port_dst);
             //infile.c_str());
-        }
 
-        //  Write the full list in a csv file.
-        if (fout) {
-            if (flow_id == 0)
-                fout << csv_header << std::endl;
-            fout << flow_id << ",";
-            fout << conn_top.first << ",";
-            fout << pkt_percentage << ",";
-            fout << conn_top.second.m_FlowHash << ",";
-            fout << conn_top.second.m_FlowInfo.m_ip_src.toString().c_str() << ",";
-            fout << conn_top.second.m_FlowInfo.m_ip_dst.toString().c_str() << ",";
-            fout << (int)conn_top.second.m_FlowInfo.m_ip_proto << ",";
-            fout << conn_top.second.m_FlowInfo.m_port_src << ",";
-            fout << conn_top.second.m_FlowInfo.m_port_dst << ",";
-            //fout << infile.c_str() << ",";
-            fout << std::endl;
+            // WRITE the first TOP N entries of "temp" in a CV file.
+            if (fout) {
+                if (flow_id == 0)
+                    fout << csv_header << std::endl;
+
+                fout << flow_id << ",";
+                fout << conn_top.first << ",";
+                fout << pkt_percentage << ",";
+                fout << conn_top.second.m_FlowHash << ",";
+                fout << conn_top.second.m_FlowInfo.m_ip_src.toString().c_str() << ",";
+                fout << conn_top.second.m_FlowInfo.m_ip_dst.toString().c_str() << ",";
+                fout << (int)conn_top.second.m_FlowInfo.m_ip_proto << ",";
+                fout << conn_top.second.m_FlowInfo.m_port_src << ",";
+                fout << conn_top.second.m_FlowInfo.m_port_dst;
+                //fout << infile.c_str() << ",";
+                fout << std::endl;
+            }
         }
         flow_id++;
     }
