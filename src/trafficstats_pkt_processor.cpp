@@ -63,7 +63,7 @@ bool TrafficStatsPacketProcessor::process_packet(const Packet& pktIn, Packet& pk
     ParserRetCode_t ret = GPRC_NOT_GTPU_PKT;
     FlowStats_t FlowStats;
     flow_hash_t hash = 0;
-    int offsetTransport = 0, ip_prot = 0, offsetInnerTransport = 0;
+    int offsetTransport = 0, ip_prot = 0;
 
     m_num_input_pkts++;
 
@@ -71,7 +71,7 @@ bool TrafficStatsPacketProcessor::process_packet(const Packet& pktIn, Packet& pk
     if (m_inner) {
         // detect if this is an encapsulated packet or not
         ret = get_gtpu_inner_transport_start_offset(
-            pktIn, &offsetTransport, &ip_prot, &offsetInnerTransport, &hash, &FlowStats.m_FlowInfo);
+            pktIn, &offsetTransport, &ip_prot, NULL, &hash, &FlowStats.m_FlowInfo);
     }
 
     if (ret == GPRC_NOT_GTPU_PKT) {

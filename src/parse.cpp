@@ -330,7 +330,7 @@ ParserRetCode_t get_gtpu_inner_ip_start_offset(const Packet& pkt,
     ParsingInfo* info)
 {
     int offset = 0, ip_prot = 0;
-    ParserRetCode_t ret = get_transport_start_offset(pkt, &offset, &ip_prot, NULL, hash, info);
+    ParserRetCode_t ret = get_transport_start_offset(pkt, &offset, &ip_prot, NULL, hash, NULL);
     if (UNLIKELY(ret != GPRC_VALID_PKT))
         return ret;
     if (UNLIKELY(ip_prot != IPPROTO_UDP))
@@ -397,7 +397,7 @@ ParserRetCode_t get_gtpu_inner_ip_start_offset(const Packet& pkt,
     // check that a valid IPv4 layer is following
 
     return do_ip_layer_parse(pkt, offset, offsetIpInner, ipver, remainingLen,
-        hash, NULL);
+        hash, info);
 }
 
 ParserRetCode_t get_gtpu_inner_transport_start_offset(const Packet& pkt,
@@ -415,7 +415,7 @@ ParserRetCode_t get_gtpu_inner_transport_start_offset(const Packet& pkt,
 
     return do_transport_layer_parse(pkt, ipStartOffset, ipver, len_after_ip_start,
         offsetTransportInner, ipprotInner,
-        remainingLen, hash, NULL);
+        remainingLen, hash, info);
 }
 
 //------------------------------------------------------------------------------

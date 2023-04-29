@@ -71,7 +71,6 @@ static struct option g_long_options[] = {
     { "timing", no_argument, 0, 't' },
     { "stats", no_argument, 0, 'p' },
     { "trafficstats", required_argument, 0, 'x' },
-    { "inner", no_argument, 0, 'i' },
     { "append", no_argument, 0, 'a' },
     { "write", required_argument, 0, 'w' },
 
@@ -109,9 +108,9 @@ static void print_help()
     printf(" -q,--quiet               suppress all normal output, be script-friendly\n");
     printf(" -t,--timing              provide timestamp analysis on loaded packets\n");
     printf(" -p,--stats               provide basic parsing statistics on loaded packets\n");
-    printf(" -x <top10flows_by_pkts|allflows_by_pkts>, --trafficstats <top10flows_by_pkts|allflows_by_pkts>\n");
+    printf(" -x <top10flows_by_pkts_outer|allflows_by_pkts_outer|top10flows_by_pkts_inner|allflows_by_pkts_inner>,");
+    printf("    --trafficstats <top10flows_by_pkts_outer|allflows_by_pkts_outer|top10flows_by_pkts_inner|allflows_by_pkts_inner>\n");
     printf("                          provide traffic statistics on loaded packets\n");
-    printf(" -i,--inner               provide traffic statistics on inner\n");
     printf(" -a,--append              open output file in APPEND mode instead of TRUNCATE\n");
     printf(" -w <outfile.pcap>, --write <outfile.pcap>\n");
     printf("                          where to save the PCAP containing the results of filtering/processing\n");
@@ -206,17 +205,23 @@ int main(int argc, char** argv)
             g_config.m_parsing_stats = true;
             break;
         case 'x':
-            if (strcmp(optarg, "top10flows_by_pkts") == 0) {
+            g_config.m_inner = false;
+            if (strcmp(optarg, "top10flows_by_pkts_outer") == 0) {
                 g_config.m_parsing_trafficstats = true;
                 g_config.m_topflow_max = 10;
-            } else if (strcmp(optarg, "allflows_by_pkts") == 0) {
+            } else if (strcmp(optarg, "allflows_by_pkts_outer") == 0) {
                 g_config.m_parsing_trafficstats = true;
                 g_config.m_topflow_max = 0;
+            } else if (strcmp(optarg, "top10flows_by_pkts_inner") == 0) {
+                g_config.m_parsing_trafficstats = true;
+                g_config.m_topflow_max = 10;
+                g_config.m_inner = true;
+            } else if (strcmp(optarg, "allflows_by_pkts_inner") == 0) {
+                g_config.m_parsing_trafficstats = true;
+                g_config.m_topflow_max = 0;
+                g_config.m_inner = true;
             } else
                 printf_error("Unsupported TrafficStats mode: %s\n", optarg);
-            break;
-        case 'i':
-            g_config.m_inner = true;
             break;
         case 'a':
             append = true;
