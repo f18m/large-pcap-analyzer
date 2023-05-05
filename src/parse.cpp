@@ -35,7 +35,7 @@
 
 #include <arpa/inet.h>
 
-//#include <linux/sctp.h>
+#include <linux/sctp.h>
 #include <linux/tcp.h>
 #include <linux/udp.h>
 

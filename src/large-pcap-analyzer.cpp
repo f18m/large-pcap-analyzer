@@ -190,6 +190,10 @@ int main(int argc, char** argv)
     int opt;
     bool append = false;
     bool preserve_ifg = false;
+    bool timestamp_processing_option_present = false;
+    bool traffic_report_present = false;
+    bool report_based_on_inner = false;
+    int report_max_flows = 0;
     std::string outfile;
     std::string pcap_filter;
     std::string pcap_gtpu_filter;
@@ -218,28 +222,6 @@ int main(int argc, char** argv)
         case 'q':
             g_config.m_quiet = true;
             break;
-        case 'p':
-            g_config.m_parsing_stats = true;
-            break;
-        case 'r':
-            g_config.m_inner = false;
-            if (strcmp(optarg, "top10flows_by_pkts_outer") == 0) {
-                g_config.m_parsing_trafficstats = true;
-                g_config.m_topflow_max = 10;
-            } else if (strcmp(optarg, "allflows_by_pkts_outer") == 0) {
-                g_config.m_parsing_trafficstats = true;
-                g_config.m_topflow_max = 0; // means 'all flows'
-            } else if (strcmp(optarg, "top10flows_by_pkts") == 0) {
-                g_config.m_parsing_trafficstats = true;
-                g_config.m_topflow_max = 10;
-                g_config.m_inner = true;
-            } else if (strcmp(optarg, "allflows_by_pkts") == 0) {
-                g_config.m_parsing_trafficstats = true;
-                g_config.m_topflow_max = 0; // means 'all flows'
-                g_config.m_inner = true;
-            } else
-                printf_error("Unsupported report <%s>\n", optarg);
-            break;
         case 'a':
             append = true;
             break;
@@ -248,9 +230,6 @@ int main(int argc, char** argv)
             break;
         case 'h':
             print_help();
-            break;
-        case 't':
-            g_config.m_timestamp_analysis = true;
             break;
 
             // filters:
@@ -279,18 +258,47 @@ int main(int argc, char** argv)
             break;
 
             // timestamp processing options:
+        case 't':
+            g_config.m_timestamp_analysis = true;
+            timestamp_processing_option_present = true;
+            break;
         case 'D':
             set_duration_reset_ifg = optarg;
             new_duration = optarg;
             preserve_ifg = false;
+            timestamp_processing_option_present = true;
             break;
         case 'd':
             set_duration_saving_ifg = optarg;
             new_duration = optarg;
             preserve_ifg = true;
+            timestamp_processing_option_present = true;
             break;
         case 's':
             set_timestamps = optarg;
+            timestamp_processing_option_present = true;
+            break;
+
+            // report options:
+        case 'p':
+            g_config.m_parsing_stats = true;
+            break;
+        case 'r':
+            traffic_report_present = true;
+            if (strcmp(optarg, "top10flows_by_pkts_outer") == 0) {
+                report_max_flows = 10;
+                report_based_on_inner = false;
+            } else if (strcmp(optarg, "allflows_by_pkts_outer") == 0) {
+                report_max_flows = 0; // means 'all flows'
+                report_based_on_inner = false;
+            } else if (strcmp(optarg, "top10flows_by_pkts") == 0) {
+                report_max_flows = 10;
+                report_based_on_inner = true;
+            } else if (strcmp(optarg, "allflows_by_pkts") == 0) {
+                report_max_flows = 0; // means 'all flows'
+                report_based_on_inner = true;
+            } else
+                printf_error("Unsupported report <%s>\n", optarg);
             break;
 
             // detect errors:
@@ -313,16 +321,14 @@ int main(int argc, char** argv)
     // validate option combinations
 
     if (g_config.m_verbose && g_config.m_quiet) {
-        printf_error("Both verbose mode (-v) and quiet mode (-q) were specified... "
-                     "aborting.\n");
+        printf_error("Both verbose mode (-v) and quiet mode (-q) were specified... aborting.\n");
         return 1; // failure
     }
 
     bool some_filter_set = !pcap_filter.empty() || !pcap_gtpu_filter.empty() || !extract_filter.empty() || !search.empty()
         || (valid_tcp_filter_mode != TCP_FILTER_NOT_ACTIVE);
     if (some_filter_set && outfile.empty()) {
-        printf_error("A filtering option (-Y, -G, -C, -S or -T) was provided but "
-                     "no output file (-w) was specified... aborting.\n");
+        printf_error("A filtering option (-Y, -G, -C, -S or -T) was provided but no output file (-w) was specified... aborting.\n");
         return 1; // failure
     }
 
@@ -335,6 +341,13 @@ int main(int argc, char** argv)
         return 1; // failure
     }
 
+    if (traffic_report_present && timestamp_processing_option_present) {
+        printf_error(
+            "The options related to 'timestamp processing' cannot be combined with the options related to 'report' generation. "
+            "See --help for more details about how options are categorized. Aborting.\n");
+        return 1; // failure
+    }
+
     if (valid_tcp_filter_mode != TCP_FILTER_NOT_ACTIVE && !new_duration.empty()) {
         // for implementation simplicity, we don't allow to both TCP filter (which
         // is 2pass filtering) with duration setting (which is 2pass filtering)
@@ -343,8 +356,7 @@ int main(int argc, char** argv)
         return 1; // failure
     }
     if (!extract_filter.empty() && !pcap_gtpu_filter.empty()) {
-        // we will convert the -C filter to -G filter, so you cannot give both -C
-        // and -G!
+        // we will convert the -C filter to -G filter, so you cannot give both -C and -G!
         printf_error("Both -G and -C were specified: this is not supported.\n");
         return 1; // failure
     }
@@ -390,28 +402,31 @@ int main(int argc, char** argv)
         return 1; // failure
     }
 
+    // select the FILTER criteria to use when loading the PCAP file
     FilterCriteria filter;
     if (!filter.prepare_filter(pcap_filter, pcap_gtpu_filter, search, valid_tcp_filter_mode)) {
         // error was already logged
         return 1;
     }
 
+    // select the PACKET PROCESSOR to fullfill user's requests
     TrafficStatsPacketProcessor trafficstats_packet_proc;
     TimestampPacketProcessor timestamp_packet_proc;
     IPacketProcessor* pproc = nullptr;
-    if (g_config.m_parsing_trafficstats) {
+    if (traffic_report_present) {
         pproc = &trafficstats_packet_proc;
-        if (!trafficstats_packet_proc.prepare_processor(g_config.m_inner, g_config.m_topflow_max)) {
+        if (!trafficstats_packet_proc.prepare_processor(report_based_on_inner, report_max_flows)) {
             // error was already logged
             return 1;
         }
-    } else {
+    } else if (timestamp_processing_option_present) {
         pproc = &timestamp_packet_proc;
         if (!timestamp_packet_proc.prepare_processor(new_duration, preserve_ifg, set_timestamps)) {
             // error was already logged
             return 1;
         }
     }
+    //else: leave pproc to NULL: no packet processor is needed
 
     // the last non-option arguments are the input filenames:
 
