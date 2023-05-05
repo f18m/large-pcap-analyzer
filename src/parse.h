@@ -56,18 +56,17 @@ typedef enum {
     FLOW_FOUND_SYN_AND_SYNACK,
     FLOW_FOUND_SYN_AND_SYNACK_AND_ACK,
     FLOW_FOUND_SYN_AND_SYNACK_AND_ACK_AND_DATA,
-} FlowStatus_t;
+} TcpFlowStatus_t;
 
 typedef uint64_t flow_hash_t; // init to INVALID_FLOW_HASH
 #if __cplusplus <= 199711L
-    // no C++11 support
+// no C++11 support
 #include <map>
-typedef std::map<flow_hash_t /* key */, FlowStatus_t /* value */> flow_map_t;
+typedef std::map<flow_hash_t /* key */, TcpFlowStatus_t /* value */> flow_map_t;
 #else
-    // C++11 support available
+// C++11 support available
 #include <unordered_map>
-typedef std::unordered_map<flow_hash_t /* key */, FlowStatus_t /* value */>
-    flow_map_t;
+typedef std::unordered_map<flow_hash_t /* key */, TcpFlowStatus_t /* value */> flow_map_t;
 #endif
 
 class ParsingStats {

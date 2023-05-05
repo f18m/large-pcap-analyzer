@@ -1,7 +1,7 @@
 /*
- * processor.h
+ * trafficstats_pkt_processor.h
  *
- * Author: Francesco Montorsi
+ * Author: Giovanni Tosatti
  * Website: https://github.com/f18m/large-pcap-analyzer
  *
  * LICENSE:
@@ -43,22 +43,26 @@
 #include <vector>
 
 //------------------------------------------------------------------------------
-// TrafficStatsPacketProcessor
+// FlowStats
 // Packet processor specialized in manipulation of packet to extract Traffic Stats
 //------------------------------------------------------------------------------
 
-class FlowStats_t {
+class FlowStats {
 public:
     // identifiers of the flow:
-    ParsingInfo m_FlowInfo;
-    flow_hash_t m_FlowHash = 0;
+    ParsingInfo m_flow_info;
+    flow_hash_t m_flow_hash = 0;
     // stats about this flow:
     uint64_t m_npackets = 0;
     uint64_t m_nbytes = 0;
 };
 
-typedef std::unordered_map<flow_hash_t /* key */, FlowStats_t /* value */>
-    flow_map_for_traffic_stats_t;
+typedef std::unordered_map<flow_hash_t /* key */, FlowStats /* value */> traffic_stats_by_flow_t;
+
+//------------------------------------------------------------------------------
+// TrafficStatsPacketProcessor
+// Packet processor specialized in manipulation of packet to extract Traffic Stats
+//------------------------------------------------------------------------------
 
 class TrafficStatsPacketProcessor : public IPacketProcessor {
 public:
@@ -70,7 +74,7 @@ public:
 
     ~TrafficStatsPacketProcessor() { }
 
-    bool prepare_processor(bool inner, int topflow_max);
+    bool prepare_processor(bool inner, unsigned int topflow_max);
 
     // does
     virtual bool process_packet(const Packet& pktIn, Packet& pktOut, unsigned int pktIdx, bool& pktWasChangedOut) override;
@@ -79,11 +83,11 @@ public:
 private:
     // configuration:
     bool m_inner;
-    int m_topflow_max;
+    unsigned int m_topflow_max;
 
     // status:
     unsigned long m_num_input_pkts;
-    flow_map_for_traffic_stats_t m_conn_map;
+    traffic_stats_by_flow_t m_conn_map;
 };
 
 #endif // TRAFFIC_STATS_PROCESSOR_H_

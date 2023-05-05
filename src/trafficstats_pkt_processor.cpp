@@ -1,7 +1,7 @@
 /*
- * traffic_stats_processor.cpp
+ * trafficstats_pkt_processor.cpp
  *
- * Author: Francesco Montorsi
+ * Author: Giovanni Tosatti
  * Website: https://github.com/f18m/large-pcap-analyzer
  *
  * LICENSE:
@@ -49,7 +49,7 @@
 // TrafficStatsPacketProcessor
 //------------------------------------------------------------------------------
 
-bool TrafficStatsPacketProcessor::prepare_processor(bool inner, int topflow_max)
+bool TrafficStatsPacketProcessor::prepare_processor(bool inner, unsigned int topflow_max)
 {
     m_inner = inner;
     m_topflow_max = topflow_max;
@@ -58,25 +58,24 @@ bool TrafficStatsPacketProcessor::prepare_processor(bool inner, int topflow_max)
 
 bool TrafficStatsPacketProcessor::process_packet(const Packet& pktIn, Packet& pktOut, unsigned int pktIdx, bool& pktWasChangedOut)
 {
-    (void)pktIdx;
-    (void)pktWasChangedOut;
-    ParserRetCode_t ret = GPRC_NOT_GTPU_PKT;
-    FlowStats_t FlowStats;
-    flow_hash_t hash = 0;
-    int offsetTransport = 0, ip_prot = 0;
-
+    (void)pktIdx; // not used
+    pktWasChangedOut = false; // this processor never edits the packet
+    pktOut = pktIn; // this processor never edits the packet
     m_num_input_pkts++;
 
-    // compute_flow_hash
+    ParserRetCode_t ret = GPRC_NOT_GTPU_PKT;
+    FlowStats stats;
+    flow_hash_t hash = INVALID_FLOW_HASH;
+    int offset_transport = 0, ip_proto = 0;
+
+    // compute flow hash
     if (m_inner) {
         // detect if this is an encapsulated packet or not
-        ret = get_gtpu_inner_transport_start_offset(
-            pktIn, &offsetTransport, &ip_prot, NULL, &hash, &FlowStats.m_FlowInfo);
+        ret = get_gtpu_inner_transport_start_offset(pktIn, &offset_transport, &ip_proto, NULL, &hash, &stats.m_flow_info);
     }
 
     if (ret == GPRC_NOT_GTPU_PKT) {
-        ret = get_transport_start_offset(pktIn, &offsetTransport, &ip_prot, NULL,
-            &hash, &FlowStats.m_FlowInfo);
+        ret = get_transport_start_offset(pktIn, &offset_transport, &ip_proto, NULL, &hash, &stats.m_flow_info);
     }
 
 #if 0 // GTOTODO: Sometime the inner packet fails here !!!!
@@ -84,13 +83,13 @@ bool TrafficStatsPacketProcessor::process_packet(const Packet& pktIn, Packet& pk
         return false;
 #endif
 
-    // Flow Lookup
-    flow_map_for_traffic_stats_t::iterator itr = m_conn_map.find(hash);
+    // flow hash lookup
+    traffic_stats_by_flow_t::iterator itr = m_conn_map.find(hash);
     if (itr != m_conn_map.end()) {
         // This flow is already present
         itr->second.m_npackets++;
         itr->second.m_nbytes += pktIn.len();
-        FlowStats = itr->second;
+        stats = itr->second;
     } else {
         // This is the first packet of the flaw
 
@@ -101,27 +100,24 @@ bool TrafficStatsPacketProcessor::process_packet(const Packet& pktIn, Packet& pk
         }
 #endif
 
-        FlowStats.m_FlowHash = hash;
-        FlowStats.m_npackets = 1;
-        FlowStats.m_nbytes = pktIn.len();
-        m_conn_map.insert(std::make_pair(hash, FlowStats));
+        stats.m_flow_hash = hash;
+        stats.m_npackets = 1;
+        stats.m_nbytes = pktIn.len();
+        m_conn_map.insert(std::make_pair(hash, stats));
     }
-
-    // no change to input
-    pktOut = pktIn;
 
     return true;
 }
 
 bool TrafficStatsPacketProcessor::post_processing(const std::string& infile, unsigned int /* totNumPkts */)
 {
-    int flow_id = 0;
-    std::string csv_header = "Num,nPkts,%Pkts,FlowHash,ip_src,ip_dst,ip_proto,port_src,port_dst"; // infile
+    unsigned int flow_id = 0;
+    std::string csv_header = "Num,nPkts,%Pkts,FlowHash,ip_src,ip_dst,ip_protoo,port_src,port_dst"; // infile
 
     // Create a new temp map to sort the connection based on number of packets (Descending order)
-    std::multimap<uint64_t, FlowStats_t, std::greater<int>> temp;
+    std::multimap<uint64_t, FlowStats, std::greater<int>> temp;
     for (auto conn : m_conn_map) {
-        temp.insert(std::pair<uint64_t, FlowStats_t>(conn.second.m_npackets, conn.second));
+        temp.insert(std::pair<uint64_t, FlowStats>(conn.second.m_npackets, conn.second));
     }
 
     // Open the CSV output file
@@ -147,12 +143,12 @@ bool TrafficStatsPacketProcessor::post_processing(const std::string& infile, uns
             printf_normal("%d,%lu,%.2f%,%lu,%s,%s,%d,%d,%d\n", // ,%s
                 flow_id, conn_top.first,
                 pkt_percentage,
-                conn_top.second.m_FlowHash,
-                conn_top.second.m_FlowInfo.m_ip_src.toString().c_str(),
-                conn_top.second.m_FlowInfo.m_ip_dst.toString().c_str(),
-                conn_top.second.m_FlowInfo.m_ip_proto,
-                conn_top.second.m_FlowInfo.m_port_src,
-                conn_top.second.m_FlowInfo.m_port_dst);
+                conn_top.second.m_flow_hash,
+                conn_top.second.m_flow_info.m_ip_src.toString().c_str(),
+                conn_top.second.m_flow_info.m_ip_dst.toString().c_str(),
+                conn_top.second.m_flow_info.m_ip_proto,
+                conn_top.second.m_flow_info.m_port_src,
+                conn_top.second.m_flow_info.m_port_dst);
             //infile.c_str());
 
             // WRITE the first TOP N entries of "temp" in a CV file.
@@ -163,12 +159,12 @@ bool TrafficStatsPacketProcessor::post_processing(const std::string& infile, uns
                 fout << flow_id << ",";
                 fout << conn_top.first << ",";
                 fout << pkt_percentage << ",";
-                fout << conn_top.second.m_FlowHash << ",";
-                fout << conn_top.second.m_FlowInfo.m_ip_src.toString().c_str() << ",";
-                fout << conn_top.second.m_FlowInfo.m_ip_dst.toString().c_str() << ",";
-                fout << (int)conn_top.second.m_FlowInfo.m_ip_proto << ",";
-                fout << conn_top.second.m_FlowInfo.m_port_src << ",";
-                fout << conn_top.second.m_FlowInfo.m_port_dst;
+                fout << conn_top.second.m_flow_hash << ",";
+                fout << conn_top.second.m_flow_info.m_ip_src.toString().c_str() << ",";
+                fout << conn_top.second.m_flow_info.m_ip_dst.toString().c_str() << ",";
+                fout << (int)conn_top.second.m_flow_info.m_ip_proto << ",";
+                fout << conn_top.second.m_flow_info.m_port_src << ",";
+                fout << conn_top.second.m_flow_info.m_port_dst;
                 //fout << infile.c_str() << ",";
                 fout << std::endl;
             }

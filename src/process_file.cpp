@@ -110,7 +110,7 @@ firstpass_process_pcap_handle_for_tcp_streams(pcap_t* pcap_handle_in, FilterCrit
 
         assert(hash != INVALID_FLOW_HASH);
         std::pair<flow_map_t::iterator, bool> result = filter->flow_map().insert(
-            std::pair<flow_hash_t /* key */, FlowStatus_t /* value */>(hash,
+            std::pair<flow_hash_t /* key */, TcpFlowStatus_t /* value */>(hash,
                 FLOW_FOUND));
         if (result.second)
             nfound_streams++; // this stream is a new connection

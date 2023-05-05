@@ -1,5 +1,5 @@
 /*
- * processor.h
+ * timestamp_pkt_processor.h
  *
  * Author: Francesco Montorsi
  * Website: https://github.com/f18m/large-pcap-analyzer
