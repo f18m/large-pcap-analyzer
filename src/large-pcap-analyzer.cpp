@@ -68,11 +68,8 @@ static struct option g_long_options[] = {
     { "verbose", no_argument, 0, 'v' },
     { "version", no_argument, 0, 'V' },
     { "quiet", no_argument, 0, 'q' },
-    { "timing", no_argument, 0, 't' },
-    { "stats", no_argument, 0, 'p' },
-    { "trafficstats", required_argument, 0, 'x' },
-    { "append", no_argument, 0, 'a' },
     { "write", required_argument, 0, 'w' },
+    { "append", no_argument, 0, 'a' },
 
     // filters
     { "display-filter", required_argument, 0, 'Y' },
@@ -81,15 +78,30 @@ static struct option g_long_options[] = {
     { "string-filter", required_argument, 0, 'S' },
     { "tcp-filter", required_argument, 0, 'T' },
 
-    // processing options
+    // timestamp processing options
+    { "timing", no_argument, 0, 't' },
     { "set-duration", required_argument, 0, 'D' },
     { "set-duration-preserve-ifg", required_argument, 0, 'd' },
     { "set-timestamps-from", required_argument, 0, 's' },
 
+    // reporting options
+    { "stats", no_argument, 0, 'p' },
+    { "report", required_argument, 0, 'r' },
+
     { 0, 0, 0, 0 }
 };
 
-#define SHORT_OPTS "hvVqtpx:iaw:Y:G:C:S:T:"
+// define only short options now:
+#define SHORT_OPTS_MISC "hvVqw:a"
+#define SHORT_OPTS_FILTERS "Y:G:C:S:T:"
+#define SHORT_OPTS_TIMESTAMPS "t"
+#define SHORT_OPTS_REPORTING "p"
+
+#define SHORT_OPTS        \
+    SHORT_OPTS_MISC       \
+    SHORT_OPTS_FILTERS    \
+    SHORT_OPTS_TIMESTAMPS \
+    SHORT_OPTS_REPORTING
 
 //------------------------------------------------------------------------------
 // Static Functions
@@ -106,14 +118,9 @@ static void print_help()
     printf(" -v,--verbose             be verbose\n");
     printf(" -V,--version             print version and exit\n");
     printf(" -q,--quiet               suppress all normal output, be script-friendly\n");
-    printf(" -t,--timing              provide timestamp analysis on loaded packets\n");
-    printf(" -p,--stats               provide basic parsing statistics on loaded packets\n");
-    printf(" -x <top10flows_by_pkts_outer|allflows_by_pkts_outer|top10flows_by_pkts_inner|allflows_by_pkts_inner>,");
-    printf("    --trafficstats <top10flows_by_pkts_outer|allflows_by_pkts_outer|top10flows_by_pkts_inner|allflows_by_pkts_inner>\n");
-    printf("                          provide traffic statistics on loaded packets\n");
-    printf(" -a,--append              open output file in APPEND mode instead of TRUNCATE\n");
     printf(" -w <outfile.pcap>, --write <outfile.pcap>\n");
     printf("                          where to save the PCAP containing the results of filtering/processing\n");
+    printf(" -a,--append              open output file in APPEND mode instead of TRUNCATE\n");
     printf("Filtering options (i.e., options to select the packets to save in outfile.pcap):\n");
     printf(" -Y <tcpdump_filter>, --display-filter <tcpdump_filter>\n");
     printf("                          the PCAP filter to apply on packets (will be applied on outer IP frames for GTPu pkts)\n");
@@ -128,7 +135,8 @@ static void print_help()
     printf("                            -T syn: at least 1 SYN packet\n");
     printf("                            -T full3way: the full 3way handshake\n");
     printf("                            -T full3way-data: the full 3way handshake and data packets\n");
-    printf("Processing options (i.e., options that will change packets saved in outfile.pcap):\n");
+    printf("Timestamp processing options (i.e., options that will change packets saved in <outfile.pcap>):\n");
+    printf(" -t,--timing              provide timestamp analysis on loaded packets\n");
     printf(" --set-duration <HH:MM:SS>\n");
     printf("                          alters packet timestamps so that the time difference between first and last packet\n");
     printf("                          matches the given amount of time. All packets in the middle will be equally spaced in time.\n");
@@ -139,11 +147,20 @@ static void print_help()
     printf("                          alters all packet timestamps using the list of Unix timestamps contained in the given text file;\n");
     printf("                          the file format is: one line per packet, a single Unix timestamp in seconds (floating point supported)\n");
     printf("                          per line; the number of lines must match exactly the number of packets of the filtered input PCAP.\n");
+    printf("Reporting options:\n");
+    printf(" -p,--stats               provide basic parsing statistics on loaded packets\n");
+    printf(" --report <report-name>\n");
+    printf("                          provide a report on loaded packets; list of supported reports is:\n");
+    printf("                          allflows_by_pkts: print in CSV format all the flows sorted by number of packets\n");
+    printf("                          top10flows_by_pkts: print in CSV format the top 10 flows sorted by number of packets\n");
+    printf("                          allflows_by_pkts_outer: same as <allflows_by_pkts> but stop at GTPu outer tunnel, don't parse the tunneled packet\n");
+    printf("                          top10flows_by_pkts_outer: same as <top10flows_by_pkts> but stop at GTPu outer tunnel, don't parse the tunneled packet\n");
     printf("Inputs:\n");
     printf(" somefile.pcap            the large PCAP trace to analyze; more than 1 file can be specified.\n");
     printf("\n");
-    printf("Note that the -Y and -G options accept filters expressed in tcpdump/pcap_filters syntax.\n");
-    printf("See http://www.manpagez.com/man/7/pcap-filter/ for more info.\n");
+    printf("Note that:\n");
+    printf("  -Y and -G options accept filters expressed in tcpdump/pcap_filters syntax. See http://www.manpagez.com/man/7/pcap-filter/ for more info.\n");
+    printf("  A 'flow' is defined as a unique tuple of (srcIP, srcPort, dstIP, dstPort) for UDP,TCP,SCTP protocols.\n");
     printf("Other PCAP utilities you may be looking for are:\n");
     printf(" * mergecap: to merge PCAP files\n");
     printf(" * tcpdump: can be used to split PCAP files (and more)\n");
@@ -204,24 +221,24 @@ int main(int argc, char** argv)
         case 'p':
             g_config.m_parsing_stats = true;
             break;
-        case 'x':
+        case 'r':
             g_config.m_inner = false;
             if (strcmp(optarg, "top10flows_by_pkts_outer") == 0) {
                 g_config.m_parsing_trafficstats = true;
                 g_config.m_topflow_max = 10;
             } else if (strcmp(optarg, "allflows_by_pkts_outer") == 0) {
                 g_config.m_parsing_trafficstats = true;
-                g_config.m_topflow_max = 0;
-            } else if (strcmp(optarg, "top10flows_by_pkts_inner") == 0) {
+                g_config.m_topflow_max = 0; // means 'all flows'
+            } else if (strcmp(optarg, "top10flows_by_pkts") == 0) {
                 g_config.m_parsing_trafficstats = true;
                 g_config.m_topflow_max = 10;
                 g_config.m_inner = true;
-            } else if (strcmp(optarg, "allflows_by_pkts_inner") == 0) {
+            } else if (strcmp(optarg, "allflows_by_pkts") == 0) {
                 g_config.m_parsing_trafficstats = true;
-                g_config.m_topflow_max = 0;
+                g_config.m_topflow_max = 0; // means 'all flows'
                 g_config.m_inner = true;
             } else
-                printf_error("Unsupported TrafficStats mode: %s\n", optarg);
+                printf_error("Unsupported report <%s>\n", optarg);
             break;
         case 'a':
             append = true;
@@ -261,7 +278,7 @@ int main(int argc, char** argv)
                 printf_error("Unsupported TCP filtering mode: %s\n", optarg);
             break;
 
-            // processing options:
+            // timestamp processing options:
         case 'D':
             set_duration_reset_ifg = optarg;
             new_duration = optarg;

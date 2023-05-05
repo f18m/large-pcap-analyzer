@@ -1,17 +1,26 @@
-//------------------------------------------------------------------------------
-// ipaddress.h: A simple class able to hold IPv4 and IPv6 addresses
-// (C) Copyright 2020 Empirix Inc.
-//
-//  Created on: Jan, 2020
-//      Author: fmontorsi
-//
-// Description:
-// C++ alternative to IpAddress_t structures, with emphasis on
-//  - memory compactness
-//  - speed in conversion from/to string
-// Unlike IpAddress_t the endianness of IP addresses here is coherent between
-// IPv4 and IPv6. Moreover the class provides a clean C++ API.
-//------------------------------------------------------------------------------
+/*
+ * ipaddress.h
+ *
+ * Author: Francesco Montorsi
+ * Website: https://github.com/f18m/large-pcap-analyzer
+ *
+ * LICENSE:
+        This program is free software; you can redistribute it and/or modify
+        it under the terms of the GNU General Public License as published by
+        the Free Software Foundation; either version 2 of the License, or
+        (at your option) any later version.
+
+        This program is distributed in the hope that it will be useful,
+        but WITHOUT ANY WARRANTY; without even the implied warranty of
+        MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        GNU General Public License for more details.
+
+        You should have received a copy of the GNU General Public License
+        along with this program; if not, write to the Free Software
+        Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+        MA 02110-1301, USA.
+
+ */
 
 #pragma once
 
@@ -22,8 +31,7 @@
 
 //---------------------------------------------------------------------------
 // IpAddress
-// A simple class able to hold IPv4 and IPv6 addresses
-// and perform _fast_ conversion to string format.
+// A simple class that represents either an IPv4 or IPv6 address
 //---------------------------------------------------------------------------
 class IpAddress {
 public:
