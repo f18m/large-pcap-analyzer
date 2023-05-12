@@ -45,9 +45,10 @@
 typedef enum {
     GPRC_VALID_PKT = 0,
 
-    GPRC_NOT_GTPU_PKT = -1,
-    GPRC_TOO_SHORT_PKT = -2,
-    GPRC_INVALID_PKT = -3,
+    GPRC_UNKNOWN_ETHERTYPE = -1,
+    GPRC_NOT_GTPU_PKT = -2,
+    GPRC_TOO_SHORT_PKT = -3,
+    GPRC_INVALID_PKT = -4,
 } ParserRetCode_t;
 
 typedef enum {
@@ -103,6 +104,7 @@ public:
     }
 
 public:
+    // FIXME: put m_ in front of variable names
     uint64_t pkts_valid_gtpu_transport;
     uint64_t pkts_valid_gtpu_ip;
     uint64_t pkts_valid_tranport;
@@ -112,7 +114,7 @@ public:
     uint64_t pkts_total;
 };
 
-class ParsingInfo {
+class FlowInfo {
 public:
     // identifiers of the flow:
     IpAddress m_ip_src;
@@ -120,30 +122,42 @@ public:
     uint8_t m_ip_proto = 0;
     uint16_t m_port_src = 0;
     uint16_t m_port_dst = 0;
+
+    flow_hash_t compute_flow_hash();
+    flow_hash_t get_flow_hash() const
+    {
+        // this function assumes that compute_flow_hash() has already been invoked
+        return m_hash;
+    }
+
+private:
+    flow_hash_t m_hash = 0;
 };
 
 //------------------------------------------------------------------------------
 // Packet Parsing Functions
 //------------------------------------------------------------------------------
 
-extern ParserRetCode_t get_transport_start_offset(const Packet& pkt,
+extern ParserRetCode_t get_transport_start_offset( // fn
+    const Packet& pkt,
     int* offsetTransportOut,
     int* ipprotOut,
-    int* remainingLen,
-    flow_hash_t* hash,
-    ParsingInfo* info);
+    int* remainingLenOut,
+    FlowInfo* infoOut);
 
-extern ParserRetCode_t get_gtpu_inner_ip_start_offset(const Packet& pkt,
-    int* offsetIpInner,
-    int* ipver,
-    int* remainingLen,
-    flow_hash_t* hash,
-    ParsingInfo* info);
+extern ParserRetCode_t get_gtpu_inner_ip_start_offset( // fn
+    const Packet& pkt,
+    int* offsetIpInnerOut,
+    int* ipverOut,
+    int* remainingLenOut,
+    FlowInfo* infoOut);
 
 extern ParserRetCode_t get_gtpu_inner_transport_start_offset(
-    const Packet& pkt, int* offsetTransportInner, int* ipprotInner,
-    int* remainingLen, flow_hash_t* hash,
-    ParsingInfo* info);
+    const Packet& pkt,
+    int* offsetTransportInnerOut,
+    int* ipprotInnerOut,
+    int* remainingLenOut,
+    FlowInfo* infoOut);
 
 extern void update_parsing_stats(const Packet& pkt, ParsingStats& outstats);
 

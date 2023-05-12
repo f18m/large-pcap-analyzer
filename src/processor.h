@@ -45,7 +45,7 @@ public:
         m_current_pass = 0;
     }
 
-    ~IPacketProcessor() { }
+    ~IPacketProcessor() {}
 
     // some packet processor specialization might need to process each PCAP file twice:
     virtual bool needs_2passes() const

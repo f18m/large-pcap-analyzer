@@ -80,22 +80,21 @@ firstpass_process_pcap_handle_for_tcp_streams(pcap_t* pcap_handle_in, FilterCrit
                 nloaded_pkts / MILLION);
 
         // first, detect if this is a TCP SYN/SYN-ACK packet
-        flow_hash_t hash = INVALID_FLOW_HASH;
         bool is_tcp_syn = false, is_tcp_syn_ack = false, is_tcp_ack = false;
+        FlowInfo flow_info;
 
         int offsetInnerTransport = 0, innerIpProt = 0,
             len_after_transport_start = 0;
         ParserRetCode_t ret = get_gtpu_inner_transport_start_offset(
             pkt, &offsetInnerTransport, &innerIpProt, &len_after_transport_start,
-            &hash, NULL);
+            &flow_info);
         if (ret != GPRC_VALID_PKT) {
-            // not a GTPu packet...try treating it as non-encapsulated TCP packet:
+            // not a GTPu packet... try treating it as non-encapsulated TCP packet:
             ParserRetCode_t ret = get_transport_start_offset(pkt, &offsetInnerTransport, &innerIpProt,
-                &len_after_transport_start, &hash, NULL);
+                &len_after_transport_start, &flow_info);
             if (ret != GPRC_VALID_PKT) {
                 offsetInnerTransport = 0;
                 innerIpProt = 0;
-                hash = INVALID_FLOW_HASH;
                 ninvalid_pkts++;
                 continue;
             }
@@ -108,6 +107,7 @@ firstpass_process_pcap_handle_for_tcp_streams(pcap_t* pcap_handle_in, FilterCrit
 
         // then save the state for the TCP connection associated to this packet:
 
+        flow_hash_t hash = flow_info.compute_flow_hash();
         assert(hash != INVALID_FLOW_HASH);
         std::pair<flow_map_t::iterator, bool> result = filter->flow_map().insert(
             std::pair<flow_hash_t /* key */, TcpFlowStatus_t /* value */>(hash,

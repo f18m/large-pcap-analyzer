@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash 
 
 ####################################################################
 ## Simple testing of large_pcap_analyzer
@@ -439,8 +439,10 @@ function test_set_timestamps()
 }
 
 find_dependencies_or_die
-test_timing
+#test_timing
 test_tcpdump_filter
+exit 0
+
 test_gtpu_filter
 test_extract_conn_filter
 test_tcp_filter

@@ -29,6 +29,10 @@
 
 #include <string>
 
+#include "hash_algo.h"
+
+#define IPV6_LEN (16)
+
 //---------------------------------------------------------------------------
 // IpAddress
 // A simple class that represents either an IPv4 or IPv6 address
@@ -49,6 +53,23 @@ public:
     {
         addrFamily = AF_INET6;
         addr.ipv6 = ipv6;
+    }
+
+    // ----------------------------------------------------------------------
+    // IPv4 or IPv6 hashing
+    // ----------------------------------------------------------------------
+
+    uint64_t get_hash() const
+    {
+        switch (addrFamily) {
+        case AF_INET:
+            return FastHash64((const char*)&addr.ipv4.s_addr, sizeof(addr.ipv4.s_addr), 0);
+        case AF_INET6:
+            return FastHash64((const char*)&addr.ipv4.s_addr, IPV6_LEN, 0);
+
+        default:
+            return 0;
+        }
     }
 
     // ----------------------------------------------------------------------

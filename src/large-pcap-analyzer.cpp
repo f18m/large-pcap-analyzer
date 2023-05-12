@@ -121,7 +121,7 @@ static void print_help()
     printf(" -w <outfile.pcap>, --write <outfile.pcap>\n");
     printf("                          where to save the PCAP containing the results of filtering/processing\n");
     printf(" -a,--append              open output file in APPEND mode instead of TRUNCATE\n");
-    printf("Filtering options (i.e., options to select the packets to save in outfile.pcap):\n");
+    printf("Filtering options (i.e., options to select the packets to save in <outfile.pcap>):\n");
     printf(" -Y <tcpdump_filter>, --display-filter <tcpdump_filter>\n");
     printf("                          the PCAP filter to apply on packets (will be applied on outer IP frames for GTPu pkts)\n");
     printf(" -G <gtpu_tcpdump_filter>, --inner-filter <gtpu_tcpdump_filter>\n");
@@ -253,8 +253,10 @@ int main(int argc, char** argv)
                 valid_tcp_filter_mode = TCP_FILTER_CONN_HAVING_FULL_3WAY_HANDSHAKE;
             else if (strcmp(optarg, "full3way-data") == 0)
                 valid_tcp_filter_mode = TCP_FILTER_CONN_HAVING_FULL_3WAY_HANDSHAKE_AND_DATA;
-            else
-                printf_error("Unsupported TCP filtering mode: %s\n", optarg);
+            else {
+                printf_error("Unsupported TCP filtering mode: %s. Please check supported TCP filtering modes in --help output.\n", optarg);
+                return 1; // failure
+            }
             break;
 
             // timestamp processing options:
@@ -297,8 +299,10 @@ int main(int argc, char** argv)
             } else if (strcmp(optarg, "allflows_by_pkts") == 0) {
                 report_max_flows = 0; // means 'all flows'
                 report_based_on_inner = true;
-            } else
-                printf_error("Unsupported report <%s>\n", optarg);
+            } else {
+                printf_error("Unsupported report <%s>. Please check supported report names in --help output.\n", optarg);
+                return 1; // failure
+            }
             break;
 
             // detect errors:

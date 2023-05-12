@@ -49,9 +49,8 @@
 
 class FlowStats {
 public:
-    // identifiers of the flow:
-    ParsingInfo m_flow_info;
-    flow_hash_t m_flow_hash = 0;
+    // identifier of the flow:
+    FlowInfo m_flow_info;
     // stats about this flow:
     uint64_t m_npackets = 0;
     uint64_t m_nbytes = 0;

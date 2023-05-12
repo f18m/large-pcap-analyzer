@@ -63,7 +63,7 @@ public:
         m_num_input_pkts = 0;
     }
 
-    ~TimestampPacketProcessor() { }
+    ~TimestampPacketProcessor() {}
 
     bool prepare_processor(const std::string& set_duration, bool preserve_ifg,
         const std::string& timestamp_file);

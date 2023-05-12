@@ -65,17 +65,16 @@ bool TrafficStatsPacketProcessor::process_packet(const Packet& pktIn, Packet& pk
 
     ParserRetCode_t ret = GPRC_NOT_GTPU_PKT;
     FlowStats stats;
-    flow_hash_t hash = INVALID_FLOW_HASH;
     int offset_transport = 0, ip_proto = 0;
 
     // compute flow hash
     if (m_inner) {
         // detect if this is an encapsulated packet or not
-        ret = get_gtpu_inner_transport_start_offset(pktIn, &offset_transport, &ip_proto, NULL, &hash, &stats.m_flow_info);
+        ret = get_gtpu_inner_transport_start_offset(pktIn, &offset_transport, &ip_proto, NULL, &stats.m_flow_info);
     }
 
     if (ret == GPRC_NOT_GTPU_PKT) {
-        ret = get_transport_start_offset(pktIn, &offset_transport, &ip_proto, NULL, &hash, &stats.m_flow_info);
+        ret = get_transport_start_offset(pktIn, &offset_transport, &ip_proto, NULL, &stats.m_flow_info);
     }
 
 #if 0 // GTOTODO: Sometime the inner packet fails here !!!!
@@ -84,6 +83,7 @@ bool TrafficStatsPacketProcessor::process_packet(const Packet& pktIn, Packet& pk
 #endif
 
     // flow hash lookup
+    flow_hash_t hash = stats.m_flow_info.compute_flow_hash();
     traffic_stats_by_flow_t::iterator itr = m_conn_map.find(hash);
     if (itr != m_conn_map.end()) {
         // This flow is already present
@@ -100,7 +100,6 @@ bool TrafficStatsPacketProcessor::process_packet(const Packet& pktIn, Packet& pk
         }
 #endif
 
-        stats.m_flow_hash = hash;
         stats.m_npackets = 1;
         stats.m_nbytes = pktIn.len();
         m_conn_map.insert(std::make_pair(hash, stats));
@@ -143,7 +142,7 @@ bool TrafficStatsPacketProcessor::post_processing(const std::string& infile, uns
             printf_normal("%d,%lu,%.2f%,%lu,%s,%s,%d,%d,%d\n", // ,%s
                 flow_id, conn_top.first,
                 pkt_percentage,
-                conn_top.second.m_flow_hash,
+                conn_top.second.m_flow_info.get_flow_hash(),
                 conn_top.second.m_flow_info.m_ip_src.toString().c_str(),
                 conn_top.second.m_flow_info.m_ip_dst.toString().c_str(),
                 conn_top.second.m_flow_info.m_ip_proto,
@@ -159,7 +158,7 @@ bool TrafficStatsPacketProcessor::post_processing(const std::string& infile, uns
                 fout << flow_id << ",";
                 fout << conn_top.first << ",";
                 fout << pkt_percentage << ",";
-                fout << conn_top.second.m_flow_hash << ",";
+                fout << conn_top.second.m_flow_info.get_flow_hash() << ",";
                 fout << conn_top.second.m_flow_info.m_ip_src.toString().c_str() << ",";
                 fout << conn_top.second.m_flow_info.m_ip_dst.toString().c_str() << ",";
                 fout << (int)conn_top.second.m_flow_info.m_ip_proto << ",";

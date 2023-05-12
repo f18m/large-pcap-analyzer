@@ -4,9 +4,14 @@
 AUTOMAKE_OPTIONS = foreign subdir-objects
 ACLOCAL_AMFLAGS = -I m4
 
+# makes it easier to debug integration tests:
+BASH_DEBUG_OPT = -x
+
+
 bin_PROGRAMS = large_pcap_analyzer
 large_pcap_analyzer_SOURCES = \
 	src/filter.cpp \
+	src/hash_algo.cpp \
 	src/large-pcap-analyzer.cpp \
 	src/parse.cpp \
 	src/pcap_helpers.cpp \
@@ -17,6 +22,7 @@ large_pcap_analyzer_SOURCES = \
 large_pcap_analyzer_HDRS = \
 	src/config.h \
 	src/filter.h \
+	src/hash_algo.h \
 	src/large-pcap-analyzer.h \
 	src/packet.h \
 	src/parse.h \
@@ -28,7 +34,7 @@ large_pcap_analyzer_HDRS = \
 	src/trafficstats_pkt_processor.h
 
 check: $(bin_PROGRAMS)
-	cd test-pcaps && chmod a+x ./run_tests.sh && bash run_tests.sh
+	cd test-pcaps && chmod a+x ./run_tests.sh && bash $(BASH_DEBUG_OPT) run_tests.sh
 
 # "test" or "tests" are just synonyms of "check"
 test: check
