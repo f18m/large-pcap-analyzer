@@ -49,6 +49,25 @@
 
 class FlowStats {
 public:
+    FlowStats()
+    {
+    }
+    FlowStats(const FlowInfo& info, uint64_t first_pkt_len)
+    {
+        m_flow_info = info;
+        update_stats(first_pkt_len);
+    }
+    FlowInfo& get_flow_info()
+    {
+        return m_flow_info;
+    }
+    void update_stats(uint64_t new_pkt_len)
+    {
+        m_npackets++;
+        m_nbytes += new_pkt_len;
+    }
+
+private:
     // identifier of the flow:
     FlowInfo m_flow_info;
     // stats about this flow:
@@ -85,7 +104,8 @@ private:
     unsigned int m_topflow_max;
 
     // status:
-    unsigned long m_num_input_pkts;
+    uint64_t m_num_input_pkts;
+    uint64_t m_num_parse_failed_pkts;
     traffic_stats_by_flow_t m_conn_map;
 };
 

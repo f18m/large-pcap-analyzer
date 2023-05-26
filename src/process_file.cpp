@@ -261,12 +261,10 @@ static bool process_pcap_handle(const std::string& infile, pcap_t* pcap_handle_i
         if (tosave) {
             if (pktprocessor) {
                 bool pktWasChanged = false;
-                if (!pktprocessor->process_packet(
-                        pkt, tempPkt,
+                if (!pktprocessor->process_packet(pkt, tempPkt,
                         nmatching /* this is the index of the saved packets */,
                         pktWasChanged)) {
-                    printf_error("Error while processing packet %lu. Aborting.\n",
-                        nmatching);
+                    printf_error("Error while processing packet %lu. Aborting.\n", nmatching);
                     return false;
                 }
 
@@ -340,6 +338,7 @@ static bool process_pcap_handle(const std::string& infile, pcap_t* pcap_handle_i
         }
     }
 
+    // FIXME: move into TimestampPacketProcessor::post_processing():
     if (g_config.m_timestamp_analysis) {
         if (!Packet::pcap_timestamp_is_valid(&first_pcap_header) && !Packet::pcap_timestamp_is_valid(&last_pcap_header)) {
             printf_normal("Apparently both the first and last packet packets of the PCAP have no valid timestamp... cannot compute PCAP duration.\n");

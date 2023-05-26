@@ -64,45 +64,32 @@ bool TrafficStatsPacketProcessor::process_packet(const Packet& pktIn, Packet& pk
     m_num_input_pkts++;
 
     ParserRetCode_t ret = GPRC_NOT_GTPU_PKT;
-    FlowStats stats;
+    FlowInfo flow_id;
     int offset_transport = 0, ip_proto = 0;
 
     // compute flow hash
     if (m_inner) {
-        // detect if this is an encapsulated packet or not
-        ret = get_gtpu_inner_transport_start_offset(pktIn, &offset_transport, &ip_proto, NULL, &stats.m_flow_info);
+        // detect if this is a GTPu-encapsulated packet or not
+        ret = get_gtpu_inner_transport_start_offset(pktIn, &offset_transport, &ip_proto, NULL, &flow_id);
+    } else {
+        // just check the outer layer also for GTPu-encapsulated packets
+        ret = get_transport_start_offset(pktIn, &offset_transport, &ip_proto, NULL, &flow_id);
     }
 
-    if (ret == GPRC_NOT_GTPU_PKT) {
-        ret = get_transport_start_offset(pktIn, &offset_transport, &ip_proto, NULL, &stats.m_flow_info);
-    }
-
-#if 0 // GTOTODO: Sometime the inner packet fails here !!!!
-    if (UNLIKELY(ret != GPRC_VALID_PKT))
+    if (UNLIKELY(ret != GPRC_VALID_PKT)) {
+        m_num_parse_failed_pkts++;
         return false;
-#endif
+    }
 
     // flow hash lookup
     flow_hash_t hash = stats.m_flow_info.compute_flow_hash();
     traffic_stats_by_flow_t::iterator itr = m_conn_map.find(hash);
     if (itr != m_conn_map.end()) {
-        // This flow is already present
-        itr->second.m_npackets++;
-        itr->second.m_nbytes += pktIn.len();
-        stats = itr->second;
+        // This flow is already present -- just update its stats
+        itr->second.update_stats(pktIn.len());
     } else {
-        // This is the first packet of the flaw
-
-#if 0 // GTOTODO: Sometime the inner packet fails here !!!!
-        if (UNLIKELY(ret != GPRC_VALID_PKT)) {
-            printf_error("TrafficStatsPacketProcessor::process_packet() - Invalid Packet");
-            return false;
-        }
-#endif
-
-        stats.m_npackets = 1;
-        stats.m_nbytes = pktIn.len();
-        m_conn_map.insert(std::make_pair(hash, stats));
+        // This is the first packet of a new flow -- add it to the map
+        m_conn_map.insert(std::make_pair(hash, FlowStats(flow_id, pktIn.len()));
     }
 
     return true;
@@ -111,24 +98,27 @@ bool TrafficStatsPacketProcessor::process_packet(const Packet& pktIn, Packet& pk
 bool TrafficStatsPacketProcessor::post_processing(const std::string& infile, unsigned int /* totNumPkts */)
 {
     unsigned int flow_id = 0;
-    std::string csv_header = "Num,nPkts,%Pkts,FlowHash,ip_src,ip_dst,ip_protoo,port_src,port_dst"; // infile
+    std::string csv_header = "Num,nPkts,%Pkts,FlowHash,ip_src,ip_dst,ip_proto,port_src,port_dst"; // all columns
 
-    // Create a new temp map to sort the connection based on number of packets (Descending order)
+    // Create a new temp map to sort the connections based on number of packets (key sorted in descending order)
     std::multimap<uint64_t, FlowStats, std::greater<int>> temp;
     for (auto conn : m_conn_map) {
-        temp.insert(std::pair<uint64_t, FlowStats>(conn.second.m_npackets, conn.second));
+        uint64_t n_packets = conn.second.m_npackets;
+        const FlowStats& stats = conn.second;
+        temp.insert(std::make_pair(n_packets, stats));
     }
 
     // Open the CSV output file
     const auto outfile = infile + ".csv";
     std::ofstream fout(outfile);
-    if (!fout)
+    if (!fout) {
         printf_error("Error opening the output file [%s]: %s\n", outfile.c_str(), strerror(errno));
+        return false;
+    }
 
     // Print first TOP N entries of "temp"
-    printf_normal("------------------------------------------------------------------------------------------\n");
-    printf_normal("Input file: %s - Total number of Packets/Flows: %d/%d\n", infile.c_str(), m_num_input_pkts, m_conn_map.size());
-    printf_normal("------------------------------------------------------------------------------------------\n");
+    printf_normal("Packet parsing failed for %lu/%lu pkts. Total number of packets/flows: %lu/%zu\n",
+        m_num_parse_failed_pkts, m_num_input_pkts, m_num_input_pkts - m_num_parse_failed_pkts, m_conn_map.size());
 
     for (auto conn_top : temp) {
         double pkt_percentage = ((double)(conn_top.first) / m_num_input_pkts) * 100;
@@ -148,7 +138,6 @@ bool TrafficStatsPacketProcessor::post_processing(const std::string& infile, uns
                 conn_top.second.m_flow_info.m_ip_proto,
                 conn_top.second.m_flow_info.m_port_src,
                 conn_top.second.m_flow_info.m_port_dst);
-            //infile.c_str());
 
             // WRITE the first TOP N entries of "temp" in a CV file.
             if (fout) {
@@ -164,7 +153,6 @@ bool TrafficStatsPacketProcessor::post_processing(const std::string& infile, uns
                 fout << (int)conn_top.second.m_flow_info.m_ip_proto << ",";
                 fout << conn_top.second.m_flow_info.m_port_src << ",";
                 fout << conn_top.second.m_flow_info.m_port_dst;
-                //fout << infile.c_str() << ",";
                 fout << std::endl;
             }
         }
