@@ -60,10 +60,14 @@ bool TrafficStatsPacketProcessor::process_packet(const Packet& pktIn, Packet& pk
     FlowInfo flow_id;
     int offset_transport = 0, ip_proto = 0;
 
-    // compute flow hash
+    // parse the packet
     if (m_inner) {
         // detect if this is a GTPu-encapsulated packet or not
         ret = get_gtpu_inner_transport_start_offset(pktIn, &offset_transport, &ip_proto, NULL, &flow_id);
+        if (ret == GPRC_NOT_GTPU_PKT) {
+            // not a GTPu packet... look at the network/transport layers that are present:
+            ret = get_transport_start_offset(pktIn, &offset_transport, &ip_proto, NULL, &flow_id);
+        }
     } else {
         // just check the outer layer also for GTPu-encapsulated packets
         ret = get_transport_start_offset(pktIn, &offset_transport, &ip_proto, NULL, &flow_id);
@@ -71,7 +75,7 @@ bool TrafficStatsPacketProcessor::process_packet(const Packet& pktIn, Packet& pk
 
     if (UNLIKELY(ret != GPRC_VALID_PKT)) {
         m_num_parse_failed_pkts++;
-        return false;
+        return true; // keep going, don't stop here
     }
 
     // flow hash lookup
@@ -90,19 +94,24 @@ bool TrafficStatsPacketProcessor::process_packet(const Packet& pktIn, Packet& pk
 
 bool TrafficStatsPacketProcessor::post_processing(const std::string& /* infile */, unsigned int /* totNumPkts */)
 {
-    std::string csv_header = "Num,nPkts,%Pkts,FlowHash,ip_src,ip_dst,ip_proto,port_src,port_dst"; // all columns
+    // summarize the result so far
+    printf_normal("Packet parsing failed for %lu/%lu pkts. Total number of packets/flows detected: %ld/%zu.\n",
+        m_num_parse_failed_pkts, m_num_input_pkts, m_num_input_pkts - m_num_parse_failed_pkts, m_conn_map.size());
 
     // Create a new temp map to sort the connections based on number of packets (key sorted in descending order)
     std::multimap<uint64_t, FlowStats, std::greater<int>> temp;
+    uint64_t total_pkts = 0, total_bytes = 0;
     for (auto conn : m_conn_map) {
         uint64_t n_packets = conn.second.get_packets();
         const FlowStats& stats = conn.second;
         temp.insert(std::make_pair(n_packets, stats));
+        total_pkts += n_packets;
+        total_bytes += conn.second.get_bytes();
     }
 
+    // If needed, save the report in an output CSV file
     std::ofstream fout;
     if (!m_report_outfile.empty()) {
-        // Open the CSV output file
         fout.open(m_report_outfile);
         if (!fout) {
             printf_error("Error opening the output file [%s]: %s\n", m_report_outfile.c_str(), strerror(errno));
@@ -111,20 +120,28 @@ bool TrafficStatsPacketProcessor::post_processing(const std::string& /* infile *
     }
 
     // Print first TOP N entries of "temp"
-    printf_normal("Packet parsing failed for %lu/%lu pkts. Total number of packets/flows detected: %ld/%zu\n",
-        m_num_parse_failed_pkts, m_num_input_pkts, m_num_input_pkts - m_num_parse_failed_pkts, m_conn_map.size());
-
     unsigned int nflow = 0;
+    char csv_line[8192];
     for (auto conn_top : temp) {
-        double pkt_percentage = ((double)(conn_top.first) / m_num_input_pkts) * 100;
-
         if (nflow < m_topflow_max /* one of the topN flows?*/ || m_topflow_max == 0 /* print all flows? */) {
             if (nflow == 0) {
-                printf_normal("%s\n", csv_header.c_str());
+                std::string csv_header = "flow_num,num_pkts,%pkts,num_bytes,%bytes,flow_hash,ip_src,ip_dst,ip_proto,port_src,port_dst"; // all columns
+                if (fout.is_open()) {
+                    fout << csv_header << std::endl;
+                } else {
+                    printf_normal("%s\n", csv_header.c_str());
+                }
             }
-            printf_normal("%d,%lu,%.2f%%,%lu,%s,%s,%d,%d,%d\n",
-                nflow, conn_top.first /* KEY=num packets */,
+
+            // prepare CSV line
+            double pkt_percentage = ((double)(conn_top.second.get_packets()) / total_pkts) * 100;
+            double bytes_percentage = ((double)(conn_top.second.get_bytes()) / total_bytes) * 100;
+            snprintf(csv_line, sizeof(csv_line), "%u,%lu,%.2f,%lu,%.2f,%lX,%s,%s,%d,%d,%d\n",
+                nflow,
+                conn_top.second.get_packets(),
                 pkt_percentage,
+                conn_top.second.get_bytes(),
+                bytes_percentage,
                 conn_top.second.get_flow_info().get_flow_hash(),
                 conn_top.second.get_flow_info().m_ip_src.toString().c_str(),
                 conn_top.second.get_flow_info().m_ip_dst.toString().c_str(),
@@ -132,26 +149,19 @@ bool TrafficStatsPacketProcessor::post_processing(const std::string& /* infile *
                 conn_top.second.get_flow_info().m_port_src,
                 conn_top.second.get_flow_info().m_port_dst);
 
-            // WRITE the first TOP N entries of "temp" in a CV file.
-            if (fout) {
-                if (nflow == 0)
-                    fout << csv_header << std::endl;
-
-                fout << nflow << ",";
-                fout << conn_top.first << ",";
-                fout << pkt_percentage << ",";
-                fout << conn_top.second.get_flow_info().get_flow_hash() << ",";
-                fout << conn_top.second.get_flow_info().m_ip_src.toString().c_str() << ",";
-                fout << conn_top.second.get_flow_info().m_ip_dst.toString().c_str() << ",";
-                fout << (int)conn_top.second.get_flow_info().m_ip_proto << ",";
-                fout << conn_top.second.get_flow_info().m_port_src << ",";
-                fout << conn_top.second.get_flow_info().m_port_dst;
-                fout << std::endl;
+            // write output
+            if (fout.is_open()) {
+                fout << csv_line;
+            } else {
+                printf_normal("%s", csv_line);
             }
         }
         nflow++;
     }
-    printf_normal("------------------------------------------------------------------------------------------\n");
+    if (fout.is_open())
+        printf_normal("Written %lu lines in CSV traffic report output file %s.\n", nflow, m_report_outfile.c_str());
+    else
+        printf_normal("Completed generation of %lu lines of traffic report.\n", nflow);
 
     // Clear current stats/map
     m_num_input_pkts = 0;

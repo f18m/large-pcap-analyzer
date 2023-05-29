@@ -216,7 +216,9 @@ firstpass_process_pcap_handle_for_tcp_streams(pcap_t* pcap_handle_in, FilterCrit
     return true;
 }
 
-static bool process_pcap_handle(const std::string& infile, pcap_t* pcap_handle_in,
+static bool process_pcap_handle(
+    const std::string& infile,
+    pcap_t* pcap_handle_in,
     FilterCriteria* filter, /* can be NULL */
     IPacketProcessor* pktprocessor, /* can be NULL */
     pcap_dumper_t* pcap_dumper, /* can be NULL */

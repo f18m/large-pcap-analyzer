@@ -405,5 +405,7 @@ flow_hash_t FlowInfo::compute_flow_hash()
     flow_hash_t port_hash = // fn
         FastHash64((const char*)&m_port_src, sizeof(m_port_src), 0) + // fn
         FastHash64((const char*)&m_port_dst, sizeof(m_port_dst), 0);
-    return ip_hash + port_hash;
+    m_hash = ip_hash + port_hash;
+
+    return m_hash;
 }

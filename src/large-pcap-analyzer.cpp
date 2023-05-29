@@ -136,7 +136,7 @@ static void print_help()
     printf("                            -T syn: at least 1 SYN packet\n");
     printf("                            -T full3way: the full 3way handshake\n");
     printf("                            -T full3way-data: the full 3way handshake and data packets\n");
-    printf("Timestamp processing options (i.e., options that will change packets saved in <outfile.pcap>):\n");
+    printf("Timestamp processing options (i.e., options that might change packets saved in <outfile.pcap>):\n");
     printf(" -t,--timing              provide timestamp analysis on loaded packets\n");
     printf(" --set-duration <HH:MM:SS>\n");
     printf("                          alters packet timestamps so that the time difference between first and last packet\n");
@@ -152,12 +152,12 @@ static void print_help()
     printf(" -p,--stats               provide basic parsing statistics on loaded packets\n");
     printf(" --report <report-name>\n");
     printf("                          provide a report on loaded packets; list of supported reports is:\n");
-    printf("                          allflows_by_pkts: print in CSV format all the flows sorted by number of packets\n");
-    printf("                          top10flows_by_pkts: print in CSV format the top 10 flows sorted by number of packets\n");
-    printf("                          allflows_by_pkts_outer: same as <allflows_by_pkts> but stop at GTPu outer tunnel, don't parse the tunneled packet\n");
-    printf("                          top10flows_by_pkts_outer: same as <top10flows_by_pkts> but stop at GTPu outer tunnel, don't parse the tunneled packet\n");
+    printf("                            allflows_by_pkts: print in CSV format all the flows sorted by number of packets\n");
+    printf("                            top10flows_by_pkts: print in CSV format the top 10 flows sorted by number of packets\n");
+    printf("                            allflows_by_pkts_outer: same as <allflows_by_pkts> but stop at GTPu outer tunnel, don't parse the tunneled packet\n");
+    printf("                            top10flows_by_pkts_outer: same as <top10flows_by_pkts> but stop at GTPu outer tunnel, don't parse the tunneled packet\n");
     printf(" --report-write <outfile.csv>\n");
-    printf("                          save the report specified by --report in CSV format into <outfile.csv>");
+    printf("                          save the report specified by --report in CSV format into <outfile.csv>\n");
     printf("Inputs:\n");
     printf(" somefile.pcap            the large PCAP trace to analyze; more than 1 file can be specified.\n");
     printf("\n");

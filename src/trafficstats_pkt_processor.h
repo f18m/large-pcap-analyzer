@@ -71,6 +71,10 @@ public:
     {
         return m_npackets;
     }
+    uint64_t get_bytes() const
+    {
+        return m_nbytes;
+    }
 
 private:
     // identifier of the flow:
@@ -91,8 +95,6 @@ class TrafficStatsPacketProcessor : public IPacketProcessor {
 public:
     TrafficStatsPacketProcessor()
     {
-        m_num_input_pkts = 0;
-        m_conn_map.clear();
     }
 
     ~TrafficStatsPacketProcessor() { }
@@ -111,13 +113,13 @@ public:
 
 private:
     // configuration:
-    bool m_inner;
-    unsigned int m_topflow_max;
+    bool m_inner = false;
+    unsigned int m_topflow_max = 0;
     std::string m_report_outfile;
 
     // status:
-    uint64_t m_num_input_pkts;
-    uint64_t m_num_parse_failed_pkts;
+    uint64_t m_num_input_pkts = 0;
+    uint64_t m_num_parse_failed_pkts = 0;
     traffic_stats_by_flow_t m_conn_map;
 };
 
