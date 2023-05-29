@@ -87,6 +87,7 @@ static struct option g_long_options[] = {
     // reporting options
     { "stats", no_argument, 0, 'p' },
     { "report", required_argument, 0, 'r' },
+    { "report-write", required_argument, 0, 'W' },
 
     { 0, 0, 0, 0 }
 };
@@ -155,6 +156,8 @@ static void print_help()
     printf("                          top10flows_by_pkts: print in CSV format the top 10 flows sorted by number of packets\n");
     printf("                          allflows_by_pkts_outer: same as <allflows_by_pkts> but stop at GTPu outer tunnel, don't parse the tunneled packet\n");
     printf("                          top10flows_by_pkts_outer: same as <top10flows_by_pkts> but stop at GTPu outer tunnel, don't parse the tunneled packet\n");
+    printf(" --report-write <outfile.csv>\n");
+    printf("                          save the report specified by --report in CSV format into <outfile.csv>");
     printf("Inputs:\n");
     printf(" somefile.pcap            the large PCAP trace to analyze; more than 1 file can be specified.\n");
     printf("\n");
@@ -203,6 +206,7 @@ int main(int argc, char** argv)
     std::string set_duration_reset_ifg;
     std::string set_duration_saving_ifg;
     std::string set_timestamps;
+    std::string report_outfile;
     TcpFilterMode valid_tcp_filter_mode = TCP_FILTER_NOT_ACTIVE;
 
     while (true) {
@@ -304,6 +308,9 @@ int main(int argc, char** argv)
                 return 1; // failure
             }
             break;
+        case 'W':
+            report_outfile = optarg;
+            break;
 
             // detect errors:
 
@@ -349,6 +356,12 @@ int main(int argc, char** argv)
         printf_error(
             "The options related to 'timestamp processing' cannot be combined with the options related to 'report' generation. "
             "See --help for more details about how options are categorized. Aborting.\n");
+        return 1; // failure
+    }
+    if (!traffic_report_present && !report_outfile.empty()) {
+        printf_error(
+            "The --report-write option was provided but no report was specified with --report. "
+            "See --help for more details about available traffic reports. Aborting.\n");
         return 1; // failure
     }
 
@@ -419,7 +432,7 @@ int main(int argc, char** argv)
     IPacketProcessor* pproc = nullptr;
     if (traffic_report_present) {
         pproc = &trafficstats_packet_proc;
-        if (!trafficstats_packet_proc.prepare_processor(report_based_on_inner, report_max_flows)) {
+        if (!trafficstats_packet_proc.prepare_processor(report_based_on_inner, report_max_flows, report_outfile)) {
             // error was already logged
             return 1;
         }

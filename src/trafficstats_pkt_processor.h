@@ -67,6 +67,11 @@ public:
         m_nbytes += new_pkt_len;
     }
 
+    uint64_t get_packets() const
+    {
+        return m_npackets;
+    }
+
 private:
     // identifier of the flow:
     FlowInfo m_flow_info;
@@ -92,7 +97,13 @@ public:
 
     ~TrafficStatsPacketProcessor() { }
 
-    bool prepare_processor(bool inner, unsigned int topflow_max);
+    bool prepare_processor(bool inner, unsigned int topflow_max, const std::string& report_outfile)
+    {
+        m_inner = inner;
+        m_topflow_max = topflow_max;
+        m_report_outfile = report_outfile;
+        return true;
+    }
 
     // does
     virtual bool process_packet(const Packet& pktIn, Packet& pktOut, unsigned int pktIdx, bool& pktWasChangedOut) override;
@@ -102,6 +113,7 @@ private:
     // configuration:
     bool m_inner;
     unsigned int m_topflow_max;
+    std::string m_report_outfile;
 
     // status:
     uint64_t m_num_input_pkts;
