@@ -14,7 +14,8 @@ Some features of this utility:
 2. Extract packets matching plain text.
 3. Computes the tcpreplay speed required to respect packet timestamps.
 4. Understands GTPu tunnelling and allows filtering via BPF filters (tcpdump syntax) the encapsulated (inner) GTPu frames.
-5. Change PCAP duration, changing the timestamp inside each packet.
+5. Changes PCAP duration, changing the timestamp inside each packet.
+6. Provides "traffic reports" e.g. the connections that transport the most bytes or packets.
 
 
 # Table of Contents
@@ -29,6 +30,7 @@ Some features of this utility:
 * [Example run 6: set PCAP duration resetting IFG](#example-run-6-set-pcap-duration-resetting-ifg)
 * [Example run 7: set PCAP duration preserving IFG](#example-run-7-set-pcap-duration-preserving-ifg)
 * [Example run 8: change PCAP timestamps](#example-run-8-change-pcap-timestamps)
+* [Example run 9: generate traffic reports](#example-run-9-generate-traffic-reports)
 
 
 
@@ -57,57 +59,65 @@ For developers: link to [Snapcraft page for large PCAP analyzer](https://build.s
 # Command line help
 
 ```
-	large-pcap-analyzer version 3.7.2
-	by Francesco Montorsi, (c) 2014-2019
+	large-pcap-analyzer version 3.7.2, built with libpcap libpcap version 1.9.1 (with TPACKET_V3)
+	by Francesco Montorsi, (c) 2014-2023
 	Usage:
-	  large-pcap-analyzer [options] somefile.pcap ...
+	large-pcap-analyzer [options] somefile.pcap ...
 	Miscellaneous options:
-	 -h,--help                this help
-	 -v,--verbose             be verbose
-	 -q,--quiet               suppress all normal output, be script-friendly
-	 -t,--timing              provide timestamp analysis on loaded packets
-	 -p,--stats               provide basic parsing statistics on loaded packets
-	 -x <numflow_max>, --traffic <numflow_max>
-	                          provide traffic statistics on loaded packets
-     -i,--inner               provide traffic statistics on inner
-	 -a,--append              open output file in APPEND mode instead of TRUNCATE
-	 -w <outfile.pcap>, --write <outfile.pcap>
-	                          where to save the PCAP containing the results of filtering/processing
-	Filtering options (i.e., options to select the packets to save in outfile.pcap):
-	 -Y <tcpdump_filter>, --display-filter <tcpdump_filter>
-	                          the PCAP filter to apply on packets (will be applied on outer IP frames for GTPu pkts)
-	 -G <gtpu_tcpdump_filter>, --inner-filter <gtpu_tcpdump_filter>
-	                          the PCAP filter to apply on inner/encapsulated GTPu frames (or outer IP frames for non-GTPu pkts)
-	 -C <conn_filter>, --connection-filter <conn_filter>
-	                          4-tuple identifying a connection to filter; syntax is 'IP1:port1 IP2:port2'
-	 -S <search-string>, --string-filter <search-string>
-	                          a string filter that will be searched inside loaded packets
-	 -T <syn|full3way|full3way-data>, --tcp-filter  <syn|full3way|full3way-data>
-	                          filter for entire TCP connections having 
-	                            -T syn: at least 1 SYN packet
-	                            -T full3way: the full 3way handshake
-	                            -T full3way-data: the full 3way handshake and data packets
-	Processing options (i.e., options that will change packets saved in outfile.pcap):
-	 --set-duration <HH:MM:SS>
-	                          alters packet timestamps so that the time difference between first and last packet
-	                          matches the given amount of time. All packets in the middle will be equally spaced in time.
-	 --set-duration-preserve-IFG <HH:MM:SS>
-	                          alters packet timestamps so that the time difference between first and last packet
-	                          matches the given amount of time. Interframe gaps (IFG) are scaled accordingly.
-	 --set-timestamps-from <infile.txt>
-	                          alters all packet timestamps using the list of Unix timestamps contained in the given text file;
-	                          the file format is: one line per packet, a single Unix timestamp in seconds (floating point supported)
-	                          per line; the number of lines must match exactly the number of packets of the filtered input PCAP.
+	-h,--help                this help
+	-v,--verbose             be verbose
+	-V,--version             print version and exit
+	-q,--quiet               suppress all normal output, be script-friendly
+	-w <outfile.pcap>, --write <outfile.pcap>
+							where to save the PCAP containing the results of filtering/processing
+	-a,--append              open output file in APPEND mode instead of TRUNCATE
+	Filtering options (i.e., options to select the packets to save in <outfile.pcap>):
+	-Y <tcpdump_filter>, --display-filter <tcpdump_filter>
+							the PCAP filter to apply on packets (will be applied on outer IP frames for GTPu pkts)
+	-G <gtpu_tcpdump_filter>, --inner-filter <gtpu_tcpdump_filter>
+							the PCAP filter to apply on inner/encapsulated GTPu frames (or outer IP frames for non-GTPu pkts)
+	-C <conn_filter>, --connection-filter <conn_filter>
+							4-tuple identifying a connection to filter; syntax is 'IP1:port1 IP2:port2'
+	-S <search-string>, --string-filter <search-string>
+							a string filter that will be searched inside loaded packets
+	-T <syn|full3way|full3way-data>, --tcp-filter  <syn|full3way|full3way-data>
+							filter for entire TCP connections having 
+								-T syn: at least 1 SYN packet
+								-T full3way: the full 3way handshake
+								-T full3way-data: the full 3way handshake and data packets
+	Timestamp processing options (i.e., options that might change packets saved in <outfile.pcap>):
+	-t,--timing              provide timestamp analysis on loaded packets
+	--set-duration <HH:MM:SS>
+							alters packet timestamps so that the time difference between first and last packet
+							matches the given amount of time. All packets in the middle will be equally spaced in time.
+	--set-duration-preserve-ifg <HH:MM:SS>
+							alters packet timestamps so that the time difference between first and last packet
+							matches the given amount of time. Interframe gaps (IFG) are scaled accordingly.
+	--set-timestamps-from <infile.txt>
+							alters all packet timestamps using the list of Unix timestamps contained in the given text file;
+							the file format is: one line per packet, a single Unix timestamp in seconds (floating point supported)
+							per line; the number of lines must match exactly the number of packets of the filtered input PCAP.
+	Reporting options:
+	-p,--stats               provide basic parsing statistics on loaded packets
+	--report <report-name>
+							provide a report on loaded packets; list of supported reports is:
+								allflows_by_pkts: print in CSV format all the flows sorted by number of packets
+								top10flows_by_pkts: print in CSV format the top 10 flows sorted by number of packets
+								allflows_by_pkts_outer: same as <allflows_by_pkts> but stop at GTPu outer tunnel, don't parse the tunneled packet
+								top10flows_by_pkts_outer: same as <top10flows_by_pkts> but stop at GTPu outer tunnel, don't parse the tunneled packet
+	--report-write <outfile.csv>
+							save the report specified by --report in CSV format into <outfile.csv>
 	Inputs:
-	 somefile.pcap            the large PCAP trace to analyze; more than 1 file can be specified.
-	
-	Note that the -Y and -G options accept filters expressed in tcpdump/pcap_filters syntax.
-	See http://www.manpagez.com/man/7/pcap-filter/ for more info.
+	somefile.pcap            the large PCAP trace to analyze; more than 1 file can be specified.
+
+	Note that:
+	-Y and -G options accept filters expressed in tcpdump/pcap_filters syntax. See http://www.manpagez.com/man/7/pcap-filter/ for more info.
+	A 'flow' is defined as a unique tuple of (srcIP, srcPort, dstIP, dstPort) for UDP,TCP,SCTP protocols.
 	Other PCAP utilities you may be looking for are:
-	 * mergecap: to merge PCAP files
-	 * tcpdump: can be used to split PCAP files (and more)
-	 * editcap: can be used to manipulate timestamps in PCAP files (and more)
-	 * tcprewrite: can be used to rewrite some packet fields in PCAP files (and more)
+	* mergecap: to merge PCAP files
+	* tcpdump: can be used to split PCAP files (and more)
+	* editcap: can be used to manipulate timestamps in PCAP files (and more)
+	* tcprewrite: can be used to rewrite some packet fields in PCAP files (and more)
 ```
 
 # Example run 1: time analysis
@@ -359,3 +369,32 @@ Finally using the Large PCAP file analyzer tool, the capture trace is actually m
 $ large_pcap_analyzer --write out.pcap --set-timestamps-from pkts_timings.txt test-pcaps/timing-test.pcap
 ```
 
+
+# Example run 9: generate traffic reports
+
+In this example we are interested in having a quick overview of the top 10 connections contained in the PCAP file
+that carry the highest number of packets.
+To achieve that, from the --help overview, the "top10flows_by_pkts" traffic report is selected:
+
+```
+$ ./large_pcap_analyzer --report top10flows_by_pkts test-pcaps/ipv4_gtpu_https.pcap 
+0M packets (18201 packets) were loaded from PCAP.
+Packet parsing failed for 0/18201 pkts. Total number of packets/flows detected: 18201/213.
+Traffic report in CSV format:
+flow_num,num_pkts,%pkts,num_bytes,%bytes,flow_hash,ip_src,ip_dst,ip_proto,port_src,port_dst
+0,5562,30.56,5779325,34.98,5346E247DCBCA579,10.85.73.237,202.122.145.141,6,49789,443
+1,5043,27.71,5262864,31.86,359E06A6A0671690,10.85.73.237,202.122.145.141,6,40461,443
+2,4328,23.78,4470177,27.06,D0D80A5F6A8B3F4F,10.85.73.237,202.122.145.141,6,50059,443
+3,849,4.66,214889,1.30,13111CC415F92E54,10.85.73.237,58.71.141.53,6,49473,10000
+4,209,1.15,46214,0.28,5255AFFF70F6BFB5,10.85.73.237,58.71.141.53,6,49407,10000
+5,144,0.79,33478,0.20,DE86E0ED622568E9,10.85.73.237,208.67.76.95,6,49461,443
+6,112,0.62,74928,0.45,EC297958A1CA3946,10.85.73.237,216.58.196.74,6,54805,443
+7,101,0.55,28010,0.17,E26097004F952A54,10.85.73.237,208.67.76.95,6,49460,443
+8,59,0.32,10551,0.06,D3CD1D4C2E38C2C2,10.85.73.237,121.123.204.19,6,49458,80
+9,56,0.31,17508,0.11,54FD688F6BAAAF89,10.85.73.237,65.52.108.154,6,49453,443
+Completed generation of 10 lines of traffic report.
+```
+
+From such output it's clear that the TCP connection (ip_proto=6) between IPs 10.85.73.237 and 202.122.145.141
+on TCP ports 49789 and 443 (default HTTPs ports) is the connection which transported the highest number of 
+packets (30.56%) and bytes (34.98%).

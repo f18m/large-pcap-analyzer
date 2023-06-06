@@ -123,39 +123,43 @@ bool TrafficStatsPacketProcessor::post_processing(const std::string& /* infile *
     unsigned int nflow = 0;
     char csv_line[8192];
     for (auto conn_top : temp) {
-        if (nflow < m_topflow_max /* one of the topN flows?*/ || m_topflow_max == 0 /* print all flows? */) {
-            if (nflow == 0) {
-                std::string csv_header = "flow_num,num_pkts,%pkts,num_bytes,%bytes,flow_hash,ip_src,ip_dst,ip_proto,port_src,port_dst"; // all columns
-                if (fout.is_open()) {
-                    fout << csv_header << std::endl;
-                } else {
-                    printf_normal("%s\n", csv_header.c_str());
-                }
-            }
+        if (nflow >= m_topflow_max /* one of the topN flows?*/ && m_topflow_max > 0 /* print all flows? */) {
+            // stop here the processing: the topN flows have been processed
+            break;
+        }
 
-            // prepare CSV line
-            double pkt_percentage = ((double)(conn_top.second.get_packets()) / total_pkts) * 100;
-            double bytes_percentage = ((double)(conn_top.second.get_bytes()) / total_bytes) * 100;
-            snprintf(csv_line, sizeof(csv_line), "%u,%lu,%.2f,%lu,%.2f,%lX,%s,%s,%d,%d,%d\n",
-                nflow,
-                conn_top.second.get_packets(),
-                pkt_percentage,
-                conn_top.second.get_bytes(),
-                bytes_percentage,
-                conn_top.second.get_flow_info().get_flow_hash(),
-                conn_top.second.get_flow_info().m_ip_src.toString().c_str(),
-                conn_top.second.get_flow_info().m_ip_dst.toString().c_str(),
-                conn_top.second.get_flow_info().m_ip_proto,
-                conn_top.second.get_flow_info().m_port_src,
-                conn_top.second.get_flow_info().m_port_dst);
-
-            // write output
+        if (nflow == 0) {
+            std::string csv_header = "flow_num,num_pkts,%pkts,num_bytes,%bytes,flow_hash,ip_src,ip_dst,ip_proto,port_src,port_dst"; // all columns
             if (fout.is_open()) {
-                fout << csv_line;
+                fout << csv_header << std::endl;
             } else {
-                printf_normal("%s", csv_line);
+                printf_normal("Traffic report in CSV format:\n%s\n", csv_header.c_str());
             }
         }
+
+        // prepare CSV line
+        double pkt_percentage = ((double)(conn_top.second.get_packets()) / total_pkts) * 100;
+        double bytes_percentage = ((double)(conn_top.second.get_bytes()) / total_bytes) * 100;
+        snprintf(csv_line, sizeof(csv_line), "%u,%lu,%.2f,%lu,%.2f,%lX,%s,%s,%d,%d,%d\n",
+            nflow,
+            conn_top.second.get_packets(),
+            pkt_percentage,
+            conn_top.second.get_bytes(),
+            bytes_percentage,
+            conn_top.second.get_flow_info().get_flow_hash(),
+            conn_top.second.get_flow_info().m_ip_src.toString().c_str(),
+            conn_top.second.get_flow_info().m_ip_dst.toString().c_str(),
+            conn_top.second.get_flow_info().m_ip_proto,
+            conn_top.second.get_flow_info().m_port_src,
+            conn_top.second.get_flow_info().m_port_dst);
+
+        // write output
+        if (fout.is_open()) {
+            fout << csv_line;
+        } else {
+            printf_normal("%s", csv_line);
+        }
+
         nflow++;
     }
     if (fout.is_open())
