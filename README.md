@@ -398,3 +398,6 @@ Completed generation of 10 lines of traffic report.
 From such output it's clear that the TCP connection (ip_proto=6) between IPs 10.85.73.237 and 202.122.145.141
 on TCP ports 49789 and 443 (default HTTPs ports) is the connection which transported the highest number of 
 packets (30.56%) and bytes (34.98%).
+
+Note that, even if pkt/byte counts do not matter, the traffic reports are also an handy way to
+count and dump all connections found inside a PCAP file.

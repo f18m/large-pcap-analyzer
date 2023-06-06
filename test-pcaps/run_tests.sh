@@ -444,9 +444,12 @@ function test_reporting_traffic_stats()
 
     test_file[1]="ipv4_ftp.pcap"
     expected_csv_output[1]="traffic_ipv4_ftp.csv"
+    test_file[2]="ipv4_gtpu_https.pcap"
+    expected_csv_output[2]="traffic_ipv4_gtpu_https.csv"
     
     rm -f /tmp/filter*.pcap /tmp/traffic-flow-*
     for testnum in $(seq 1 1); do
+        # first of all launch the LPA asking it to generate the traffic report on stdout
         $lpa_binary -w /tmp/filter${testnum}-lpa.pcap --report "allflows_by_pkts" ${test_file[testnum]} >/dev/null
         if [ $? -ne 0 ]; then echo "Failed test of --report option" ; exit 1 ; fi
 
