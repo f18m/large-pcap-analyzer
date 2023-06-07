@@ -1,4 +1,12 @@
 *****************************************************************************************************
+large-pcap-analyzer v3.8.0
+released on June 6, 2023
+
+* Implement new --report and --report-write CLI options to produce "traffic reports" (#18)
+* Build fails on Ubuntu 23.04 because pcap_compile_nopcap is deprecated (#17)
+
+
+*****************************************************************************************************
 large-pcap-analyzer v3.7.1
 released on Dec 19, 2022
 
