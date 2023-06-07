@@ -80,22 +80,21 @@ firstpass_process_pcap_handle_for_tcp_streams(pcap_t* pcap_handle_in, FilterCrit
                 nloaded_pkts / MILLION);
 
         // first, detect if this is a TCP SYN/SYN-ACK packet
-        flow_hash_t hash = INVALID_FLOW_HASH;
         bool is_tcp_syn = false, is_tcp_syn_ack = false, is_tcp_ack = false;
+        FlowInfo flow_info;
 
         int offsetInnerTransport = 0, innerIpProt = 0,
             len_after_transport_start = 0;
         ParserRetCode_t ret = get_gtpu_inner_transport_start_offset(
             pkt, &offsetInnerTransport, &innerIpProt, &len_after_transport_start,
-            &hash);
+            &flow_info);
         if (ret != GPRC_VALID_PKT) {
-            // not a GTPu packet...try treating it as non-encapsulated TCP packet:
+            // not a GTPu packet... try treating it as non-encapsulated TCP packet:
             ParserRetCode_t ret = get_transport_start_offset(pkt, &offsetInnerTransport, &innerIpProt,
-                &len_after_transport_start, &hash);
+                &len_after_transport_start, &flow_info);
             if (ret != GPRC_VALID_PKT) {
                 offsetInnerTransport = 0;
                 innerIpProt = 0;
-                hash = INVALID_FLOW_HASH;
                 ninvalid_pkts++;
                 continue;
             }
@@ -108,9 +107,10 @@ firstpass_process_pcap_handle_for_tcp_streams(pcap_t* pcap_handle_in, FilterCrit
 
         // then save the state for the TCP connection associated to this packet:
 
+        flow_hash_t hash = flow_info.compute_flow_hash();
         assert(hash != INVALID_FLOW_HASH);
         std::pair<flow_map_t::iterator, bool> result = filter->flow_map().insert(
-            std::pair<flow_hash_t /* key */, FlowStatus_t /* value */>(hash,
+            std::pair<flow_hash_t /* key */, TcpFlowStatus_t /* value */>(hash,
                 FLOW_FOUND));
         if (result.second)
             nfound_streams++; // this stream is a new connection
@@ -216,10 +216,12 @@ firstpass_process_pcap_handle_for_tcp_streams(pcap_t* pcap_handle_in, FilterCrit
     return true;
 }
 
-static bool process_pcap_handle(pcap_t* pcap_handle_in,
+static bool process_pcap_handle(
+    const std::string& infile,
+    pcap_t* pcap_handle_in,
     FilterCriteria* filter, /* can be NULL */
-    IPacketProcessor* processorcfg, /* can be NULL */
-    pcap_dumper_t* pcap_dumper,
+    IPacketProcessor* pktprocessor, /* can be NULL */
+    pcap_dumper_t* pcap_dumper, /* can be NULL */
     unsigned long* nloadedOUT,
     unsigned long* nmatchingOUT)
 {
@@ -259,14 +261,12 @@ static bool process_pcap_handle(pcap_t* pcap_handle_in,
         // else: filtering disabled, save all packets
 
         if (tosave) {
-            if (processorcfg) {
+            if (pktprocessor) {
                 bool pktWasChanged = false;
-                if (!processorcfg->process_packet(
-                        pkt, tempPkt,
+                if (!pktprocessor->process_packet(pkt, tempPkt,
                         nmatching /* this is the index of the saved packets */,
                         pktWasChanged)) {
-                    printf_error("Error while processing packet %lu. Aborting.\n",
-                        nmatching);
+                    printf_error("Error while processing packet %lu. Aborting.\n", nmatching);
                     return false;
                 }
 
@@ -278,6 +278,10 @@ static bool process_pcap_handle(pcap_t* pcap_handle_in,
                     if (pcap_dumper)
                         pcap_dump((u_char*)pcap_dumper, pcap_header, pcap_packet);
                 }
+            } else {
+                // no packet processor provided: just dump original packet
+                if (pcap_dumper)
+                    pcap_dump((u_char*)pcap_dumper, pcap_header, pcap_packet);
             }
 
             nmatching++;
@@ -314,8 +318,8 @@ static bool process_pcap_handle(pcap_t* pcap_handle_in,
             return false;
     }
 
-    if (processorcfg) {
-        if (!processorcfg->post_processing(nloaded))
+    if (pktprocessor) {
+        if (!pktprocessor->post_processing(infile, nloaded))
             return false;
     }
 
@@ -330,13 +334,13 @@ static bool process_pcap_handle(pcap_t* pcap_handle_in,
             printf_normal("No criteria for packet selection specified (search string "
                           "/ GTPu filter / TCP streams filter) so nothing was "
                           "written into output PCAP.\n");
-        } else if (processorcfg) {
-            printf_normal("%luM packets (%lu packets) were processed and saved into "
-                          "output PCAP.\n",
+        } else if (pktprocessor) {
+            printf_normal("%luM packets (%lu packets) were processed and saved into output PCAP.\n",
                 nmatching / MILLION, nmatching);
         }
     }
 
+    // FIXME: move into TimestampPacketProcessor::post_processing():
     if (g_config.m_timestamp_analysis) {
         if (!Packet::pcap_timestamp_is_valid(&first_pcap_header) && !Packet::pcap_timestamp_is_valid(&last_pcap_header)) {
             printf_normal("Apparently both the first and last packet packets of the PCAP have no valid timestamp... cannot compute PCAP duration.\n");
@@ -423,7 +427,7 @@ static bool process_pcap_handle(pcap_t* pcap_handle_in,
 
 bool process_file(
     const std::string& infile, const std::string& outfile, bool outfile_append, FilterCriteria* filter,
-    IPacketProcessor* processorcfg, unsigned long* nloadedOUT, unsigned long* nmatchingOUT)
+    IPacketProcessor* pktprocessor, unsigned long* nloadedOUT, unsigned long* nmatchingOUT)
 {
     char pcap_errbuf[PCAP_ERRBUF_SIZE];
     pcap_t* pcap_handle_in = NULL;
@@ -499,7 +503,7 @@ bool process_file(
             if (st.st_size)
                 printf_verbose("The PCAP file has size %.2fGiB = %luMiB.\n", (double)st.st_size / (double)GB, st.st_size / MB);
 
-            if (!process_pcap_handle(pcap_handle_in, filter, processorcfg, pcap_dumper, nloadedOUT, nmatchingOUT))
+            if (!process_pcap_handle(infile.c_str(), pcap_handle_in, filter, pktprocessor, pcap_dumper, nloadedOUT, nmatchingOUT))
                 return false;
         } else {
             return false;
@@ -511,20 +515,20 @@ bool process_file(
         // discard ALL packets!)
         FilterCriteria* filterToUse = filter;
         if (!filter->is_some_filter_active()) {
-            printf_verbose("Packet processing operations active but no filter specified: processing ALL input packets\n");
+            printf_verbose("Selected some packet processing operation but no filter was specified: processing ALL input packets\n");
             filterToUse = NULL; // disable filter-out logic
         }
 
-        if (processorcfg && processorcfg->needs_2passes()) {
+        if (pktprocessor && pktprocessor->needs_2passes()) {
             // first pass
-            printf_normal("Packet processing operations require 2 passes: performing first pass\n");
+            printf_normal("Packet processing require 2 passes: performing first pass\n");
             unsigned long nFilteredPkts = 0;
-            processorcfg->set_pass_index(0);
-            if (!process_pcap_handle(pcap_handle_in, filterToUse, processorcfg, NULL, NULL, &nFilteredPkts))
+            pktprocessor->set_pass_index(0);
+            if (!process_pcap_handle(infile.c_str(), pcap_handle_in, filterToUse, pktprocessor, NULL, NULL, &nFilteredPkts))
                 return false;
 
             if (nFilteredPkts) {
-                printf_normal("Packet processing operations require 2 passes: performing second pass\n");
+                printf_normal("Packet processing require 2 passes: performing second pass\n");
 
                 // reopen infile
                 pcap_close(pcap_handle_in);
@@ -535,14 +539,14 @@ bool process_file(
                 }
 
                 // re-process this time with PROCESSOR and OUTPUT DUMPER active!
-                processorcfg->set_pass_index(1);
-                if (!process_pcap_handle(pcap_handle_in, filterToUse, processorcfg, pcap_dumper, nloadedOUT, nmatchingOUT))
+                pktprocessor->set_pass_index(1);
+                if (!process_pcap_handle(infile.c_str(), pcap_handle_in, filterToUse, pktprocessor, pcap_dumper, nloadedOUT, nmatchingOUT))
                     return false;
             }
         } else {
-            // standard mode (no -T option)
+            // standard mode: do all the processing in 1 pass
 
-            if (!process_pcap_handle(pcap_handle_in, filterToUse, processorcfg, pcap_dumper, nloadedOUT, nmatchingOUT))
+            if (!process_pcap_handle(infile.c_str(), pcap_handle_in, filterToUse, pktprocessor, pcap_dumper, nloadedOUT, nmatchingOUT))
                 return false;
         }
     }

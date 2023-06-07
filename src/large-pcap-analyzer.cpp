@@ -34,6 +34,7 @@
 #include "printf_helpers.h"
 #include "process_file.h"
 #include "timestamp_pkt_processor.h"
+#include "trafficstats_pkt_processor.h"
 
 #include <arpa/inet.h>
 #include <linux/tcp.h>
@@ -67,10 +68,8 @@ static struct option g_long_options[] = {
     { "verbose", no_argument, 0, 'v' },
     { "version", no_argument, 0, 'V' },
     { "quiet", no_argument, 0, 'q' },
-    { "timing", no_argument, 0, 't' },
-    { "stats", no_argument, 0, 'p' },
-    { "append", no_argument, 0, 'a' },
     { "write", required_argument, 0, 'w' },
+    { "append", no_argument, 0, 'a' },
 
     // filters
     { "display-filter", required_argument, 0, 'Y' },
@@ -79,15 +78,31 @@ static struct option g_long_options[] = {
     { "string-filter", required_argument, 0, 'S' },
     { "tcp-filter", required_argument, 0, 'T' },
 
-    // processing options
+    // timestamp processing options
+    { "timing", no_argument, 0, 't' },
     { "set-duration", required_argument, 0, 'D' },
     { "set-duration-preserve-ifg", required_argument, 0, 'd' },
     { "set-timestamps-from", required_argument, 0, 's' },
 
+    // reporting options
+    { "stats", no_argument, 0, 'p' },
+    { "report", required_argument, 0, 'r' },
+    { "report-write", required_argument, 0, 'W' },
+
     { 0, 0, 0, 0 }
 };
 
-#define SHORT_OPTS "hvVqtpaw:Y:G:C:S:T:"
+// define only short options now:
+#define SHORT_OPTS_MISC "hvVqw:a"
+#define SHORT_OPTS_FILTERS "Y:G:C:S:T:"
+#define SHORT_OPTS_TIMESTAMPS "t"
+#define SHORT_OPTS_REPORTING "p"
+
+#define SHORT_OPTS        \
+    SHORT_OPTS_MISC       \
+    SHORT_OPTS_FILTERS    \
+    SHORT_OPTS_TIMESTAMPS \
+    SHORT_OPTS_REPORTING
 
 //------------------------------------------------------------------------------
 // Static Functions
@@ -104,12 +119,10 @@ static void print_help()
     printf(" -v,--verbose             be verbose\n");
     printf(" -V,--version             print version and exit\n");
     printf(" -q,--quiet               suppress all normal output, be script-friendly\n");
-    printf(" -t,--timing              provide timestamp analysis on loaded packets\n");
-    printf(" -p,--stats               provide basic parsing statistics on loaded packets\n");
-    printf(" -a,--append              open output file in APPEND mode instead of TRUNCATE\n");
     printf(" -w <outfile.pcap>, --write <outfile.pcap>\n");
     printf("                          where to save the PCAP containing the results of filtering/processing\n");
-    printf("Filtering options (i.e., options to select the packets to save in outfile.pcap):\n");
+    printf(" -a,--append              open output file in APPEND mode instead of TRUNCATE\n");
+    printf("Filtering options (i.e., options to select the packets to save in <outfile.pcap>):\n");
     printf(" -Y <tcpdump_filter>, --display-filter <tcpdump_filter>\n");
     printf("                          the PCAP filter to apply on packets (will be applied on outer IP frames for GTPu pkts)\n");
     printf(" -G <gtpu_tcpdump_filter>, --inner-filter <gtpu_tcpdump_filter>\n");
@@ -123,7 +136,8 @@ static void print_help()
     printf("                            -T syn: at least 1 SYN packet\n");
     printf("                            -T full3way: the full 3way handshake\n");
     printf("                            -T full3way-data: the full 3way handshake and data packets\n");
-    printf("Processing options (i.e., options that will change packets saved in outfile.pcap):\n");
+    printf("Timestamp processing options (i.e., options that might change packets saved in <outfile.pcap>):\n");
+    printf(" -t,--timing              provide timestamp analysis on loaded packets\n");
     printf(" --set-duration <HH:MM:SS>\n");
     printf("                          alters packet timestamps so that the time difference between first and last packet\n");
     printf("                          matches the given amount of time. All packets in the middle will be equally spaced in time.\n");
@@ -134,11 +148,22 @@ static void print_help()
     printf("                          alters all packet timestamps using the list of Unix timestamps contained in the given text file;\n");
     printf("                          the file format is: one line per packet, a single Unix timestamp in seconds (floating point supported)\n");
     printf("                          per line; the number of lines must match exactly the number of packets of the filtered input PCAP.\n");
+    printf("Reporting options:\n");
+    printf(" -p,--stats               provide basic parsing statistics on loaded packets\n");
+    printf(" --report <report-name>\n");
+    printf("                          provide a report on loaded packets; list of supported reports is:\n");
+    printf("                            allflows_by_pkts: print in CSV format all the flows sorted by number of packets\n");
+    printf("                            top10flows_by_pkts: print in CSV format the top 10 flows sorted by number of packets\n");
+    printf("                            allflows_by_pkts_outer: same as <allflows_by_pkts> but stop at GTPu outer tunnel, don't parse the tunneled packet\n");
+    printf("                            top10flows_by_pkts_outer: same as <top10flows_by_pkts> but stop at GTPu outer tunnel, don't parse the tunneled packet\n");
+    printf(" --report-write <outfile.csv>\n");
+    printf("                          save the report specified by --report in CSV format into <outfile.csv>\n");
     printf("Inputs:\n");
     printf(" somefile.pcap            the large PCAP trace to analyze; more than 1 file can be specified.\n");
     printf("\n");
-    printf("Note that the -Y and -G options accept filters expressed in tcpdump/pcap_filters syntax.\n");
-    printf("See http://www.manpagez.com/man/7/pcap-filter/ for more info.\n");
+    printf("Note that:\n");
+    printf("  -Y and -G options accept filters expressed in tcpdump/pcap_filters syntax. See http://www.manpagez.com/man/7/pcap-filter/ for more info.\n");
+    printf("  A 'flow' is defined as a unique tuple of (srcIP, srcPort, dstIP, dstPort) for UDP,TCP,SCTP protocols.\n");
     printf("Other PCAP utilities you may be looking for are:\n");
     printf(" * mergecap: to merge PCAP files\n");
     printf(" * tcpdump: can be used to split PCAP files (and more)\n");
@@ -168,6 +193,10 @@ int main(int argc, char** argv)
     int opt;
     bool append = false;
     bool preserve_ifg = false;
+    bool timestamp_processing_option_present = false;
+    bool traffic_report_present = false;
+    bool report_based_on_inner = false;
+    int report_max_flows = 0;
     std::string outfile;
     std::string pcap_filter;
     std::string pcap_gtpu_filter;
@@ -177,6 +206,7 @@ int main(int argc, char** argv)
     std::string set_duration_reset_ifg;
     std::string set_duration_saving_ifg;
     std::string set_timestamps;
+    std::string report_outfile;
     TcpFilterMode valid_tcp_filter_mode = TCP_FILTER_NOT_ACTIVE;
 
     while (true) {
@@ -196,9 +226,6 @@ int main(int argc, char** argv)
         case 'q':
             g_config.m_quiet = true;
             break;
-        case 'p':
-            g_config.m_parsing_stats = true;
-            break;
         case 'a':
             append = true;
             break;
@@ -207,9 +234,6 @@ int main(int argc, char** argv)
             break;
         case 'h':
             print_help();
-            break;
-        case 't':
-            g_config.m_timestamp_analysis = true;
             break;
 
             // filters:
@@ -233,23 +257,59 @@ int main(int argc, char** argv)
                 valid_tcp_filter_mode = TCP_FILTER_CONN_HAVING_FULL_3WAY_HANDSHAKE;
             else if (strcmp(optarg, "full3way-data") == 0)
                 valid_tcp_filter_mode = TCP_FILTER_CONN_HAVING_FULL_3WAY_HANDSHAKE_AND_DATA;
-            else
-                printf_error("Unsupported TCP filtering mode: %s\n", optarg);
+            else {
+                printf_error("Unsupported TCP filtering mode: %s. Please check supported TCP filtering modes in --help output.\n", optarg);
+                return 1; // failure
+            }
             break;
 
-            // processing options:
+            // timestamp processing options:
+        case 't':
+            g_config.m_timestamp_analysis = true;
+            timestamp_processing_option_present = true;
+            break;
         case 'D':
             set_duration_reset_ifg = optarg;
             new_duration = optarg;
             preserve_ifg = false;
+            timestamp_processing_option_present = true;
             break;
         case 'd':
             set_duration_saving_ifg = optarg;
             new_duration = optarg;
             preserve_ifg = true;
+            timestamp_processing_option_present = true;
             break;
         case 's':
             set_timestamps = optarg;
+            timestamp_processing_option_present = true;
+            break;
+
+            // report options:
+        case 'p':
+            g_config.m_parsing_stats = true;
+            break;
+        case 'r':
+            traffic_report_present = true;
+            if (strcmp(optarg, "top10flows_by_pkts_outer") == 0) {
+                report_max_flows = 10;
+                report_based_on_inner = false;
+            } else if (strcmp(optarg, "allflows_by_pkts_outer") == 0) {
+                report_max_flows = 0; // means 'all flows'
+                report_based_on_inner = false;
+            } else if (strcmp(optarg, "top10flows_by_pkts") == 0) {
+                report_max_flows = 10;
+                report_based_on_inner = true;
+            } else if (strcmp(optarg, "allflows_by_pkts") == 0) {
+                report_max_flows = 0; // means 'all flows'
+                report_based_on_inner = true;
+            } else {
+                printf_error("Unsupported report <%s>. Please check supported report names in --help output.\n", optarg);
+                return 1; // failure
+            }
+            break;
+        case 'W':
+            report_outfile = optarg;
             break;
 
             // detect errors:
@@ -272,16 +332,14 @@ int main(int argc, char** argv)
     // validate option combinations
 
     if (g_config.m_verbose && g_config.m_quiet) {
-        printf_error("Both verbose mode (-v) and quiet mode (-q) were specified... "
-                     "aborting.\n");
+        printf_error("Both verbose mode (-v) and quiet mode (-q) were specified... aborting.\n");
         return 1; // failure
     }
 
     bool some_filter_set = !pcap_filter.empty() || !pcap_gtpu_filter.empty() || !extract_filter.empty() || !search.empty()
         || (valid_tcp_filter_mode != TCP_FILTER_NOT_ACTIVE);
     if (some_filter_set && outfile.empty()) {
-        printf_error("A filtering option (-Y, -G, -C, -S or -T) was provided but "
-                     "no output file (-w) was specified... aborting.\n");
+        printf_error("A filtering option (-Y, -G, -C, -S or -T) was provided but no output file (-w) was specified... aborting.\n");
         return 1; // failure
     }
 
@@ -294,6 +352,19 @@ int main(int argc, char** argv)
         return 1; // failure
     }
 
+    if (traffic_report_present && timestamp_processing_option_present) {
+        printf_error(
+            "The options related to 'timestamp processing' cannot be combined with the options related to 'report' generation. "
+            "See --help for more details about how options are categorized. Aborting.\n");
+        return 1; // failure
+    }
+    if (!traffic_report_present && !report_outfile.empty()) {
+        printf_error(
+            "The --report-write option was provided but no report was specified with --report. "
+            "See --help for more details about available traffic reports. Aborting.\n");
+        return 1; // failure
+    }
+
     if (valid_tcp_filter_mode != TCP_FILTER_NOT_ACTIVE && !new_duration.empty()) {
         // for implementation simplicity, we don't allow to both TCP filter (which
         // is 2pass filtering) with duration setting (which is 2pass filtering)
@@ -302,8 +373,7 @@ int main(int argc, char** argv)
         return 1; // failure
     }
     if (!extract_filter.empty() && !pcap_gtpu_filter.empty()) {
-        // we will convert the -C filter to -G filter, so you cannot give both -C
-        // and -G!
+        // we will convert the -C filter to -G filter, so you cannot give both -C and -G!
         printf_error("Both -G and -C were specified: this is not supported.\n");
         return 1; // failure
     }
@@ -349,17 +419,31 @@ int main(int argc, char** argv)
         return 1; // failure
     }
 
+    // select the FILTER criteria to use when loading the PCAP file
     FilterCriteria filter;
     if (!filter.prepare_filter(pcap_filter, pcap_gtpu_filter, search, valid_tcp_filter_mode)) {
         // error was already logged
         return 1;
     }
 
-    TimestampPacketProcessor timestamp_proc;
-    if (!timestamp_proc.prepare_processor(new_duration, preserve_ifg, set_timestamps)) {
-        // error was already logged
-        return 1;
+    // select the PACKET PROCESSOR to fullfill user's requests
+    TrafficStatsPacketProcessor trafficstats_packet_proc;
+    TimestampPacketProcessor timestamp_packet_proc;
+    IPacketProcessor* pproc = nullptr;
+    if (traffic_report_present) {
+        pproc = &trafficstats_packet_proc;
+        if (!trafficstats_packet_proc.prepare_processor(report_based_on_inner, report_max_flows, report_outfile)) {
+            // error was already logged
+            return 1;
+        }
+    } else if (timestamp_processing_option_present) {
+        pproc = &timestamp_packet_proc;
+        if (!timestamp_packet_proc.prepare_processor(new_duration, preserve_ifg, set_timestamps)) {
+            // error was already logged
+            return 1;
+        }
     }
+    //else: leave pproc to NULL: no packet processor is needed
 
     // the last non-option arguments are the input filenames:
 
@@ -376,7 +460,7 @@ int main(int argc, char** argv)
         }
 
         // just 1 input file
-        if (!process_file(infile.c_str(), outfile.c_str(), append, &filter, &timestamp_proc, NULL, NULL))
+        if (!process_file(infile.c_str(), outfile.c_str(), append, &filter, pproc, NULL, NULL))
             return 2;
     } else {
         // more than 1 input file
@@ -390,7 +474,7 @@ int main(int argc, char** argv)
                 continue;
             }
 
-            if (!process_file(argv[currfile], outfile.c_str(), append, &filter, &timestamp_proc, &nloaded, &nmatching))
+            if (!process_file(argv[currfile], outfile.c_str(), append, &filter, pproc, &nloaded, &nmatching))
                 return 2;
             printf("\n");
 

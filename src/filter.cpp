@@ -223,8 +223,7 @@ bool FilterCriteria::is_matching(const Packet& pkt, bool* is_gtpu) // will do a 
     if (UNLIKELY(m_gtpu_filter_set)) {
         // is this a GTPu packet?
         int offset = 0, ipver = 0, len_after_inner_ip_start = 0;
-        ParserRetCode_t errcode = get_gtpu_inner_ip_start_offset(
-            pkt, &offset, &ipver, &len_after_inner_ip_start, NULL);
+        ParserRetCode_t errcode = get_gtpu_inner_ip_start_offset(pkt, &offset, &ipver, &len_after_inner_ip_start, NULL);
         if (errcode == GPRC_VALID_PKT) {
             if (is_gtpu)
                 *is_gtpu = true;

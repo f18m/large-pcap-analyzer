@@ -1,5 +1,5 @@
 /*
- * processor.cpp
+ * timestamp_pkt_processor.cpp
  *
  * Author: Francesco Montorsi
  * Website: https://github.com/f18m/large-pcap-analyzer
@@ -237,7 +237,7 @@ bool TimestampPacketProcessor::process_packet(const Packet& pktIn, Packet& pktOu
     return true;
 }
 
-bool TimestampPacketProcessor::post_processing(unsigned int totNumPkts)
+bool TimestampPacketProcessor::post_processing(const std::string& /*infile*/, unsigned int totNumPkts)
 {
     switch (m_proc_mode) {
     case PROCMODE_NONE:

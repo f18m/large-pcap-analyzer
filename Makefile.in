@@ -106,10 +106,11 @@ am__installdirs = "$(DESTDIR)$(bindir)"
 PROGRAMS = $(bin_PROGRAMS)
 am__dirstamp = $(am__leading_dot)dirstamp
 am_large_pcap_analyzer_OBJECTS = src/filter.$(OBJEXT) \
-	src/large-pcap-analyzer.$(OBJEXT) src/parse.$(OBJEXT) \
-	src/pcap_helpers.$(OBJEXT) src/printf_helpers.$(OBJEXT) \
-	src/process_file.$(OBJEXT) \
-	src/timestamp_pkt_processor.$(OBJEXT)
+	src/hash_algo.$(OBJEXT) src/large-pcap-analyzer.$(OBJEXT) \
+	src/parse.$(OBJEXT) src/pcap_helpers.$(OBJEXT) \
+	src/printf_helpers.$(OBJEXT) src/process_file.$(OBJEXT) \
+	src/timestamp_pkt_processor.$(OBJEXT) \
+	src/trafficstats_pkt_processor.$(OBJEXT)
 large_pcap_analyzer_OBJECTS = $(am_large_pcap_analyzer_OBJECTS)
 large_pcap_analyzer_LDADD = $(LDADD)
 AM_V_P = $(am__v_P_@AM_V@)
@@ -128,10 +129,12 @@ DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)/src
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__maybe_remake_depfiles = depfiles
 am__depfiles_remade = src/$(DEPDIR)/filter.Po \
+	src/$(DEPDIR)/hash_algo.Po \
 	src/$(DEPDIR)/large-pcap-analyzer.Po src/$(DEPDIR)/parse.Po \
 	src/$(DEPDIR)/pcap_helpers.Po src/$(DEPDIR)/printf_helpers.Po \
 	src/$(DEPDIR)/process_file.Po \
-	src/$(DEPDIR)/timestamp_pkt_processor.Po
+	src/$(DEPDIR)/timestamp_pkt_processor.Po \
+	src/$(DEPDIR)/trafficstats_pkt_processor.Po
 am__mv = mv -f
 CXXCOMPILE = $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
 	$(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS)
@@ -289,18 +292,24 @@ top_srcdir = @top_srcdir@
 # avoid warnings about this packet not being in GNU style:
 AUTOMAKE_OPTIONS = foreign subdir-objects
 ACLOCAL_AMFLAGS = -I m4
+
+# makes it easier to debug integration tests:
+BASH_DEBUG_OPT = -x
 large_pcap_analyzer_SOURCES = \
 	src/filter.cpp \
+	src/hash_algo.cpp \
 	src/large-pcap-analyzer.cpp \
 	src/parse.cpp \
 	src/pcap_helpers.cpp \
 	src/printf_helpers.cpp \
 	src/process_file.cpp \
-	src/timestamp_pkt_processor.cpp
+	src/timestamp_pkt_processor.cpp \
+	src/trafficstats_pkt_processor.cpp
 
 large_pcap_analyzer_HDRS = \
 	src/config.h \
 	src/filter.h \
+	src/hash_algo.h \
 	src/large-pcap-analyzer.h \
 	src/packet.h \
 	src/parse.h \
@@ -308,7 +317,8 @@ large_pcap_analyzer_HDRS = \
 	src/printf_helpers.h \
 	src/process_file.h \
 	src/processor.h \
-	src/timestamp_pkt_processor.h
+	src/timestamp_pkt_processor.h \
+	src/trafficstats_pkt_processor.h
 
 all: all-am
 
@@ -412,6 +422,8 @@ src/$(DEPDIR)/$(am__dirstamp):
 	@: > src/$(DEPDIR)/$(am__dirstamp)
 src/filter.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
+src/hash_algo.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
 src/large-pcap-analyzer.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
 src/parse.$(OBJEXT): src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
@@ -422,6 +434,8 @@ src/printf_helpers.$(OBJEXT): src/$(am__dirstamp) \
 src/process_file.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
 src/timestamp_pkt_processor.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+src/trafficstats_pkt_processor.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
 
 large_pcap_analyzer$(EXEEXT): $(large_pcap_analyzer_OBJECTS) $(large_pcap_analyzer_DEPENDENCIES) $(EXTRA_large_pcap_analyzer_DEPENDENCIES) 
@@ -436,12 +450,14 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/filter.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/hash_algo.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/large-pcap-analyzer.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/parse.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/pcap_helpers.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/printf_helpers.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/process_file.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/timestamp_pkt_processor.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/trafficstats_pkt_processor.Po@am__quote@ # am--include-marker
 
 $(am__depfiles_remade):
 	@$(MKDIR_P) $(@D)
@@ -780,12 +796,14 @@ maintainer-clean: maintainer-clean-am
 	-rm -f $(am__CONFIG_DISTCLEAN_FILES)
 	-rm -rf $(top_srcdir)/autom4te.cache
 		-rm -f src/$(DEPDIR)/filter.Po
+	-rm -f src/$(DEPDIR)/hash_algo.Po
 	-rm -f src/$(DEPDIR)/large-pcap-analyzer.Po
 	-rm -f src/$(DEPDIR)/parse.Po
 	-rm -f src/$(DEPDIR)/pcap_helpers.Po
 	-rm -f src/$(DEPDIR)/printf_helpers.Po
 	-rm -f src/$(DEPDIR)/process_file.Po
 	-rm -f src/$(DEPDIR)/timestamp_pkt_processor.Po
+	-rm -f src/$(DEPDIR)/trafficstats_pkt_processor.Po
 	-rm -f Makefile
 maintainer-clean-am: distclean-am maintainer-clean-generic
 
@@ -826,7 +844,7 @@ uninstall-am: uninstall-binPROGRAMS
 
 
 check: $(bin_PROGRAMS)
-	cd test-pcaps && chmod a+x ./run_tests.sh && bash run_tests.sh
+	cd test-pcaps && chmod a+x ./run_tests.sh && bash $(BASH_DEBUG_OPT) run_tests.sh
 
 # "test" or "tests" are just synonyms of "check"
 test: check

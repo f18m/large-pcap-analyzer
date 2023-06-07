@@ -30,6 +30,7 @@
 //------------------------------------------------------------------------------
 
 #include "packet.h"
+#include <string>
 
 //------------------------------------------------------------------------------
 // IPacketProcessor
@@ -44,7 +45,7 @@ public:
         m_current_pass = 0;
     }
 
-    ~IPacketProcessor() { }
+    ~IPacketProcessor() {}
 
     // some packet processor specialization might need to process each PCAP file twice:
     virtual bool needs_2passes() const
@@ -63,7 +64,7 @@ public:
     virtual bool process_packet(const Packet& pktIn, Packet& pktOut, unsigned int pktIdx, bool& pktWasChangedOut) = 0;
 
     // called after processing an entire PCAP file composed by "totNumPkts"
-    virtual bool post_processing(unsigned int totNumPkts) = 0;
+    virtual bool post_processing(const std::string& infile, unsigned int totNumPkts) = 0;
 
 private:
     // configuration:

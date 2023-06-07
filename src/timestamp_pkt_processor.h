@@ -1,5 +1,5 @@
 /*
- * processor.h
+ * timestamp_pkt_processor.h
  *
  * Author: Francesco Montorsi
  * Website: https://github.com/f18m/large-pcap-analyzer
@@ -63,12 +63,12 @@ public:
         m_num_input_pkts = 0;
     }
 
-    ~TimestampPacketProcessor() { }
+    ~TimestampPacketProcessor() {}
 
     bool prepare_processor(const std::string& set_duration, bool preserve_ifg,
         const std::string& timestamp_file);
 
-    bool is_some_processing_active() const
+    virtual bool is_some_processing_active() const
     {
         return m_proc_mode != PROCMODE_NONE;
     }
@@ -84,7 +84,7 @@ public:
     // does
     virtual bool process_packet(const Packet& pktIn, Packet& pktOut, unsigned int pktIdx, bool& pktWasChangedOut) override;
 
-    virtual bool post_processing(unsigned int totNumPkts) override;
+    virtual bool post_processing(const std::string& file, unsigned int totNumPkts) override;
 
 private:
     // configuration:

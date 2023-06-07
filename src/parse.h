@@ -29,6 +29,7 @@
 // Includes
 //------------------------------------------------------------------------------
 
+#include "ipaddress.h"
 #include "large-pcap-analyzer.h"
 #include "packet.h"
 #include <stdint.h>
@@ -44,9 +45,10 @@
 typedef enum {
     GPRC_VALID_PKT = 0,
 
-    GPRC_NOT_GTPU_PKT = -1,
-    GPRC_TOO_SHORT_PKT = -2,
-    GPRC_INVALID_PKT = -3,
+    GPRC_UNKNOWN_ETHERTYPE = -1,
+    GPRC_NOT_GTPU_PKT = -2,
+    GPRC_TOO_SHORT_PKT = -3,
+    GPRC_INVALID_PKT = -4,
 } ParserRetCode_t;
 
 typedef enum {
@@ -55,18 +57,17 @@ typedef enum {
     FLOW_FOUND_SYN_AND_SYNACK,
     FLOW_FOUND_SYN_AND_SYNACK_AND_ACK,
     FLOW_FOUND_SYN_AND_SYNACK_AND_ACK_AND_DATA,
-} FlowStatus_t;
+} TcpFlowStatus_t;
 
 typedef uint64_t flow_hash_t; // init to INVALID_FLOW_HASH
 #if __cplusplus <= 199711L
-    // no C++11 support
+// no C++11 support
 #include <map>
-typedef std::map<flow_hash_t /* key */, FlowStatus_t /* value */> flow_map_t;
+typedef std::map<flow_hash_t /* key */, TcpFlowStatus_t /* value */> flow_map_t;
 #else
-    // C++11 support available
+// C++11 support available
 #include <unordered_map>
-typedef std::unordered_map<flow_hash_t /* key */, FlowStatus_t /* value */>
-    flow_map_t;
+typedef std::unordered_map<flow_hash_t /* key */, TcpFlowStatus_t /* value */> flow_map_t;
 #endif
 
 class ParsingStats {
@@ -103,6 +104,7 @@ public:
     }
 
 public:
+    // FIXME: put m_ in front of variable names
     uint64_t pkts_valid_gtpu_transport;
     uint64_t pkts_valid_gtpu_ip;
     uint64_t pkts_valid_tranport;
@@ -112,24 +114,50 @@ public:
     uint64_t pkts_total;
 };
 
+class FlowInfo {
+public:
+    // identifiers of the flow:
+    IpAddress m_ip_src;
+    IpAddress m_ip_dst;
+    uint8_t m_ip_proto = 0;
+    uint16_t m_port_src = 0;
+    uint16_t m_port_dst = 0;
+
+    flow_hash_t compute_flow_hash();
+    flow_hash_t get_flow_hash() const
+    {
+        // this function assumes that compute_flow_hash() has already been invoked
+        return m_hash;
+    }
+
+private:
+    flow_hash_t m_hash = 0;
+};
+
 //------------------------------------------------------------------------------
 // Packet Parsing Functions
 //------------------------------------------------------------------------------
 
-extern ParserRetCode_t get_transport_start_offset(const Packet& pkt,
+extern ParserRetCode_t get_transport_start_offset( // fn
+    const Packet& pkt,
     int* offsetTransportOut,
     int* ipprotOut,
-    int* remainingLen,
-    flow_hash_t* hash);
+    int* remainingLenOut,
+    FlowInfo* infoOut);
 
-extern ParserRetCode_t get_gtpu_inner_ip_start_offset(const Packet& pkt,
-    int* offsetIpInner,
-    int* ipver,
-    int* remainingLen,
-    flow_hash_t* hash);
+extern ParserRetCode_t get_gtpu_inner_ip_start_offset( // fn
+    const Packet& pkt,
+    int* offsetIpInnerOut,
+    int* ipverOut,
+    int* remainingLenOut,
+    FlowInfo* infoOut);
+
 extern ParserRetCode_t get_gtpu_inner_transport_start_offset(
-    const Packet& pkt, int* offsetTransportInner, int* ipprotInner,
-    int* remainingLen, flow_hash_t* hash);
+    const Packet& pkt,
+    int* offsetTransportInnerOut,
+    int* ipprotInnerOut,
+    int* remainingLenOut,
+    FlowInfo* infoOut);
 
 extern void update_parsing_stats(const Packet& pkt, ParsingStats& outstats);
 

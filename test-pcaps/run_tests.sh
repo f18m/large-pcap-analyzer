@@ -438,7 +438,35 @@ function test_set_timestamps()
     echo "  ... testcase #$testnum passed."
 }
 
+function test_reporting_traffic_stats()
+{
+    echo "Testing --report option..."
+
+    test_file[1]="ipv4_ftp.pcap"
+    expected_csv_output[1]="traffic_ipv4_ftp.csv"
+    test_file[2]="ipv4_gtpu_https.pcap"
+    expected_csv_output[2]="traffic_ipv4_gtpu_https.csv"
+    
+    rm -f /tmp/filter*.pcap /tmp/traffic-flow-*
+    for testnum in $(seq 1 1); do
+        # first of all launch the LPA asking it to generate the traffic report on stdout
+        $lpa_binary -w /tmp/filter${testnum}-lpa.pcap --report "allflows_by_pkts" ${test_file[testnum]} >/dev/null
+        if [ $? -ne 0 ]; then echo "Failed test of --report option" ; exit 1 ; fi
+
+        # now launch again combining with --report-write option
+        $lpa_binary -w /tmp/filter${testnum}-lpa.pcap --report "allflows_by_pkts" --report-write /tmp/traffic-flow-${testnum}.csv ${test_file[testnum]} >/dev/null
+        if [ $? -ne 0 ]; then echo "Failed test of --report option" ; exit 1 ; fi
+
+        assert_files_match "/tmp/traffic-flow-${testnum}.csv" "${expected_csv_output[testnum]}" "manually"
+    done
+}
+
+
 find_dependencies_or_die
+
+# remove any possible PCAP file produced by a previuos run of these tests
+rm -f /tmp/*.pcap 
+
 test_timing
 test_tcpdump_filter
 test_gtpu_filter
@@ -447,6 +475,6 @@ test_tcp_filter
 test_set_duration
 test_set_duration_preserve_ifg
 test_set_timestamps
+test_reporting_traffic_stats
 echo "All tests passed successfully"
-
 
