@@ -257,18 +257,22 @@ bool TimestampPacketProcessor::process_packet(const Packet& pktIn, Packet& pktOu
 
 bool TimestampPacketProcessor::print_timestamp_analysis() // internal helper function
 {
-    if (m_first_pkt_ts_sec <= 0 && m_last_pkt_ts_sec <= 0) {
-        printf_normal("Apparently both the first and last packet packets of the PCAP have no valid timestamp... cannot compute PCAP duration.\n");
-        return false;
-    }
-
-    if (m_last_pkt_ts_sec <= 0 && m_num_input_pkts == 1) {
+    if (m_num_input_pkts == 1) {
         // corner case: PCAP with just 1 packet... duration is zero by definition:
         if (g_config.m_quiet)
             printf_quiet("%.6f\n", 0.0f); // be machine-friendly and indicate an error
         else
             printf_normal("The PCAP contains just 1 packet: duration is zero.\n");
 
+        return false;
+    }
+
+    if (m_first_pkt_ts_sec <= 0 && m_last_pkt_ts_sec <= 0) {
+        // corner case: negative or null timestamps at start/end of the PCAP
+        if (g_config.m_quiet)
+            printf_quiet("%.6f\n", -1.0f); // be machine-friendly and indicate an error
+        else
+            printf_normal("Apparently both the first and last packet packets of the PCAP have no valid timestamp... cannot compute PCAP duration.\n");
         return false;
     }
 
@@ -308,28 +312,32 @@ bool TimestampPacketProcessor::print_timestamp_analysis() // internal helper fun
 
 bool TimestampPacketProcessor::post_processing(const std::string& /*infile*/, unsigned int totNumPkts)
 {
+    bool timestamp_analysis_success = true;
     if (m_print_timestamp_analysis)
-        print_timestamp_analysis();
+        timestamp_analysis_success = print_timestamp_analysis();
 
+    bool timestamp_change_success = true;
     switch (m_proc_mode) {
     case PROCMODE_NONE:
     case PROCMODE_CHANGE_DURATION_RESET_IFG:
     case PROCMODE_CHANGE_DURATION_PRESERVE_IFG:
-        return true; // no error
+        timestamp_change_success = true; // no error
+        break;
 
     case PROCMODE_SET_TIMESTAMPS: {
         if (totNumPkts < m_timestamps.size()) {
             printf_error("Too many timestamps specified in the file with timestamps '%s': %zu but input PCAP has %zu packets.\n",
                 m_timestamps_input_file.c_str(), m_timestamps.size(),
                 totNumPkts);
-            return false;
-        }
-
-        return true;
+            timestamp_change_success = false;
+        } else
+            timestamp_change_success = true;
     } break;
 
     default:
         assert(0);
         return false;
     }
+
+    return timestamp_analysis_success && timestamp_change_success;
 }
