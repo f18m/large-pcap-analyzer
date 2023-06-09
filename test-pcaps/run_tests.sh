@@ -135,7 +135,15 @@ function test_timing()
     expected_exitcode[3]=2 # we expect a failure in timing analysis
     expected_human_friendly_output_lines[3]=3
 
-    for testnum in $(seq 1 3); do
+    # try to check timing of an invalid PCAP file containing "0" as timestamp for all pkts
+    test_file[4]="ipv4_sctp_iua.pcap"
+    expected_pps[4]="0"
+    expected_duration[4]="0"
+    expected_exitcode[4]=2 # we expect a failure in timing analysis
+    expected_human_friendly_output_lines[4]=3
+
+
+    for testnum in $(seq 1 4); do
 
         # ---- first test -----
         # check the human-friendly output:

@@ -225,18 +225,12 @@ static bool process_pcap_handle(
     unsigned long* nloadedOUT,
     unsigned long* nmatchingOUT)
 {
-    unsigned long nloaded = 0, nmatching = 0, ngtpu = 0, nbytes_avail = 0,
-                  nbytes_orig = 0;
+    unsigned long nloaded = 0, nmatching = 0, ngtpu = 0;
     struct timeval start, stop;
-    bool first = true;
     ParsingStats parsing_stats;
 
     const u_char* pcap_packet;
     struct pcap_pkthdr* pcap_header;
-    struct pcap_pkthdr first_pcap_header, last_pcap_header;
-
-    memset(&first_pcap_header, 0, sizeof(first_pcap_header));
-    memset(&last_pcap_header, 0, sizeof(last_pcap_header));
 
     std::string pcapfilter_desc = "";
     if (filter && filter->is_capture_filter_set())
@@ -254,13 +248,13 @@ static bool process_pcap_handle(
         // filter and save to output eventually
 
         bool is_gtpu = false;
-        bool tosave = true;
+        bool toprocess = true;
 
         if (filter)
-            tosave = filter->is_matching(pkt, &is_gtpu);
+            toprocess = filter->is_matching(pkt, &is_gtpu);
         // else: filtering disabled, save all packets
 
-        if (tosave) {
+        if (toprocess) {
             if (pktprocessor) {
                 bool pktWasChanged = false;
                 if (!pktprocessor->process_packet(pkt, tempPkt,
@@ -289,23 +283,12 @@ static bool process_pcap_handle(
         if (is_gtpu)
             ngtpu++;
 
-        if (g_config.m_timestamp_analysis) {
-            // save timestamps for later analysis:
-            if (UNLIKELY(first)) {
-                memcpy(&first_pcap_header, pcap_header, sizeof(struct pcap_pkthdr));
-                first = false;
-            } else
-                memcpy(&last_pcap_header, pcap_header, sizeof(struct pcap_pkthdr));
-        }
-
         if (g_config.m_parsing_stats) {
             update_parsing_stats(pkt, parsing_stats);
         }
 
         // advance main stats counters:
 
-        nbytes_avail += pcap_header->caplen;
-        nbytes_orig += pcap_header->len;
         nloaded++;
     }
     gettimeofday(&stop, NULL);
@@ -337,56 +320,6 @@ static bool process_pcap_handle(
         } else if (pktprocessor) {
             printf_normal("%luM packets (%lu packets) were processed and saved into output PCAP.\n",
                 nmatching / MILLION, nmatching);
-        }
-    }
-
-    // FIXME: move into TimestampPacketProcessor::post_processing():
-    if (g_config.m_timestamp_analysis) {
-        if (!Packet::pcap_timestamp_is_valid(&first_pcap_header) && !Packet::pcap_timestamp_is_valid(&last_pcap_header)) {
-            printf_normal("Apparently both the first and last packet packets of the PCAP have no valid timestamp... cannot compute PCAP duration.\n");
-            return false;
-        }
-
-        if (!Packet::pcap_timestamp_is_valid(&last_pcap_header) && nloaded == 1) {
-
-            // corner case: PCAP with just 1 packet... duration is zero by definition:
-
-            if (g_config.m_quiet)
-                printf_quiet("0\n"); // be machine-friendly and indicate an error
-            else
-                printf_normal("The PCAP contains just 1 packet: duration is zero.\n");
-        } else {
-
-            double secStart = Packet::pcap_timestamp_to_seconds(&first_pcap_header);
-            double secStop = Packet::pcap_timestamp_to_seconds(&last_pcap_header);
-            double sec = secStop - secStart;
-            if (secStart < SMALL_NUM && secStop == SMALL_NUM) {
-                if (g_config.m_quiet)
-                    printf_quiet("-1\n"); // be machine-friendly and indicate an error
-                else
-                    printf_normal("Apparently the packets of the PCAP have no valid timestamp... cannot compute PCAP duration.\n");
-
-                return false;
-            }
-
-            if (g_config.m_quiet)
-                printf_quiet("%f\n", sec); // be machine-friendly
-            else
-                printf_normal("Last packet has a timestamp offset = %.2fsec = %.2fmin = %.2fhours\n",
-                    sec, sec / 60.0, sec / 3600.0);
-
-            printf_verbose("Bytes loaded from PCAP = %lukiB = %luMiB; total bytes on wire = %lukiB = %luMiB\n",
-                nbytes_avail / KB, nbytes_avail / MB, nbytes_orig / KB, nbytes_orig / MB);
-            if (nbytes_avail == nbytes_orig)
-                printf_verbose("  => all packets in the PCAP have been captured WITHOUT truncation.\n");
-
-            if (sec > 0) {
-                printf_normal("Tcpreplay should replay this PCAP at an average of %.2fMbps / %.2fpps to respect PCAP timings.\n",
-                    (float)(8 * nbytes_avail / MB) / sec, (float)nloaded / sec);
-            } else {
-                printf_normal("Cannot compute optimal tcpreplay speed for replaying: duration is null or negative.\n");
-                return false;
-            }
         }
     }
 

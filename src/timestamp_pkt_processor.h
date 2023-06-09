@@ -55,18 +55,23 @@ class TimestampPacketProcessor : public IPacketProcessor {
 public:
     TimestampPacketProcessor()
     {
+        // config
         m_proc_mode = PROCMODE_NONE;
+        m_print_timestamp_analysis = false;
         m_new_duration_secs = 0;
+
+        // status
         m_first_pkt_ts_sec = 0;
         m_last_pkt_ts_sec = 0;
         m_previous_pkt_ts_sec = 0;
         m_num_input_pkts = 0;
+        m_nbytes_pcap = 0;
+        m_nbytes_original = 0;
     }
 
-    ~TimestampPacketProcessor() {}
+    ~TimestampPacketProcessor() { }
 
-    bool prepare_processor(const std::string& set_duration, bool preserve_ifg,
-        const std::string& timestamp_file);
+    bool prepare_processor(bool print_timestamp_analysis, const std::string& set_duration, bool preserve_ifg, const std::string& timestamp_file);
 
     virtual bool is_some_processing_active() const
     {
@@ -86,19 +91,24 @@ public:
 
     virtual bool post_processing(const std::string& file, unsigned int totNumPkts) override;
 
+protected:
+    bool print_timestamp_analysis();
+
 private:
     // configuration:
     TimestampProcessingModes m_proc_mode;
+    bool m_print_timestamp_analysis;
     double m_new_duration_secs;
-    std::vector<double> m_timestamps;
+    std::vector<double> m_timestamps; // timestamps loaded from input file, to apply to all packets
     std::string m_timestamps_input_file;
 
     // status:
     double m_first_pkt_ts_sec;
     double m_last_pkt_ts_sec;
-
     double m_previous_pkt_ts_sec;
     unsigned long m_num_input_pkts;
+    uint64_t m_nbytes_pcap;
+    uint64_t m_nbytes_original;
 };
 
 #endif // TIMESTAMP_PKT_PROCESSOR_H_

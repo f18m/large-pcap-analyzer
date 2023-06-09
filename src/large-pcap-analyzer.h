@@ -60,7 +60,6 @@ class LPAConfig {
 public:
     bool m_verbose = false;
     bool m_quiet = false;
-    bool m_timestamp_analysis = false;
     bool m_parsing_stats = false;
 
     // technically this is not a configuration but the status of the application...

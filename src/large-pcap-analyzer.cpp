@@ -193,6 +193,7 @@ int main(int argc, char** argv)
     int opt;
     bool append = false;
     bool preserve_ifg = false;
+    bool timestamp_analysis = false;
     bool timestamp_processing_option_present = false;
     bool traffic_report_present = false;
     bool report_based_on_inner = false;
@@ -265,7 +266,7 @@ int main(int argc, char** argv)
 
             // timestamp processing options:
         case 't':
-            g_config.m_timestamp_analysis = true;
+            timestamp_analysis = true;
             timestamp_processing_option_present = true;
             break;
         case 'D':
@@ -438,7 +439,7 @@ int main(int argc, char** argv)
         }
     } else if (timestamp_processing_option_present) {
         pproc = &timestamp_packet_proc;
-        if (!timestamp_packet_proc.prepare_processor(new_duration, preserve_ifg, set_timestamps)) {
+        if (!timestamp_packet_proc.prepare_processor(timestamp_analysis, new_duration, preserve_ifg, set_timestamps)) {
             // error was already logged
             return 1;
         }

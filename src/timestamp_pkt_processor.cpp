@@ -59,8 +59,9 @@ bool String2TimestampInSecs(const std::string& str, double& result)
 // TimestampPacketProcessor
 //------------------------------------------------------------------------------
 
-bool TimestampPacketProcessor::prepare_processor(const std::string& set_duration, bool preserve_ifg, const std::string& timestamp_file)
+bool TimestampPacketProcessor::prepare_processor(bool print_timestamp_analysis, const std::string& set_duration, bool preserve_ifg, const std::string& timestamp_file)
 {
+    m_print_timestamp_analysis = print_timestamp_analysis;
     if (!set_duration.empty()) {
         // the duration string can be a number in format
         //     SECONDS.FRACTIONAL_SECONDS
@@ -144,6 +145,29 @@ bool TimestampPacketProcessor::process_packet(const Packet& pktIn, Packet& pktOu
 {
     pktWasChangedOut = false; // by default: no proc done, use original packet
 
+    if (IPacketProcessor::get_pass_index() == 0) {
+        m_num_input_pkts++;
+
+        // regardless of which "processing mode" has been chosen, save timestamps of first/last pkts;
+        // these are used to
+        // * provide some basic timing info during the post_processing() phase
+        // * support the PROCMODE_CHANGE_DURATION_RESET_IFG/PROCMODE_CHANGE_DURATION_PRESERVE_IFG modes
+        if (UNLIKELY(pktIdx == 0)) {
+            assert(m_first_pkt_ts_sec == 0);
+            m_first_pkt_ts_sec = pktIn.pcap_timestamp_to_seconds();
+            m_last_pkt_ts_sec = m_first_pkt_ts_sec;
+            printf_verbose("First pkt timestamp is %f\n", m_first_pkt_ts_sec);
+        } else {
+            // remember the timestamp of the last packet:
+            m_last_pkt_ts_sec = pktIn.pcap_timestamp_to_seconds();
+        }
+
+        // caplen indicates what has been _really_ captured
+        // len indicates how long was the original packet
+        m_nbytes_pcap += pktIn.header()->caplen;
+        m_nbytes_original += pktIn.header()->len;
+    }
+
     switch (m_proc_mode) {
     case PROCMODE_NONE: {
         pktWasChangedOut = false; // no proc done, use original packet
@@ -151,13 +175,9 @@ bool TimestampPacketProcessor::process_packet(const Packet& pktIn, Packet& pktOu
 
     case PROCMODE_CHANGE_DURATION_RESET_IFG:
     case PROCMODE_CHANGE_DURATION_PRESERVE_IFG: {
-        if (IPacketProcessor::get_pass_index() == 0) {
-            // in the first pass just count the number of packets to process &
-            // remember the timestamp of the last packet:
-            m_num_input_pkts++;
-            m_last_pkt_ts_sec = pktIn.pcap_timestamp_to_seconds();
-        } else // second pass
-        {
+        if (IPacketProcessor::get_pass_index() == 1) {
+            // second pass
+
             assert(m_new_duration_secs > 0);
             assert(m_num_input_pkts > 0);
 
@@ -167,9 +187,6 @@ bool TimestampPacketProcessor::process_packet(const Packet& pktIn, Packet& pktOu
             //assert(m_last_pkt_ts_sec > 0);
 
             if (pktIdx == 0) {
-                assert(m_first_pkt_ts_sec == 0);
-                m_first_pkt_ts_sec = pktIn.pcap_timestamp_to_seconds();
-
                 printf_verbose("First pkt timestamp is %f and there are %zu pkts; target duration is %f\n",
                     m_first_pkt_ts_sec, m_num_input_pkts, m_new_duration_secs);
 
@@ -194,6 +211,7 @@ bool TimestampPacketProcessor::process_packet(const Packet& pktIn, Packet& pktOu
                     thisPktTs = m_first_pkt_ts_sec + secInterPktGap * (pktIdx + 1);
                 } else // PROCMODE_CHANGE_DURATION_PRESERVE_IFG
                 {
+                    // this code executes only during the second pass, so m_last_pkt_ts_sec is now valid:
                     double originalDuration = m_last_pkt_ts_sec - m_first_pkt_ts_sec; // constant for the whole PCAP of course
                     double pktTsOffsetSincePcapStart = pktIn.pcap_timestamp_to_seconds() - m_first_pkt_ts_sec;
 
@@ -237,8 +255,62 @@ bool TimestampPacketProcessor::process_packet(const Packet& pktIn, Packet& pktOu
     return true;
 }
 
+bool TimestampPacketProcessor::print_timestamp_analysis() // internal helper function
+{
+    if (m_first_pkt_ts_sec <= 0 && m_last_pkt_ts_sec <= 0) {
+        printf_normal("Apparently both the first and last packet packets of the PCAP have no valid timestamp... cannot compute PCAP duration.\n");
+        return false;
+    }
+
+    if (m_last_pkt_ts_sec <= 0 && m_num_input_pkts == 1) {
+        // corner case: PCAP with just 1 packet... duration is zero by definition:
+        if (g_config.m_quiet)
+            printf_quiet("%.6f\n", 0.0f); // be machine-friendly and indicate an error
+        else
+            printf_normal("The PCAP contains just 1 packet: duration is zero.\n");
+
+        return false;
+    }
+
+    if (m_first_pkt_ts_sec < SMALL_NUM && m_last_pkt_ts_sec == SMALL_NUM) {
+        // another corner case: close-to-zero timestamps
+        if (g_config.m_quiet)
+            printf_quiet("%.6f\n", -1.0f); // be machine-friendly and indicate an error
+        else
+            printf_normal("Apparently the packets of the PCAP have no valid timestamp (extremely small at least)... cannot compute PCAP duration.\n");
+
+        return false;
+    }
+
+    // normal case:
+    double duration_sec = m_last_pkt_ts_sec - m_first_pkt_ts_sec;
+
+    if (g_config.m_quiet)
+        printf_quiet("%.6f\n", duration_sec); // be machine-friendly
+    else
+        printf_normal("Last packet has a timestamp offset = %.2fsec = %.2fmin = %.2fhours\n",
+            duration_sec, duration_sec / 60.0, duration_sec / 3600.0);
+
+    printf_verbose("Bytes loaded from PCAP = %lukiB = %luMiB; total bytes on wire = %lukiB = %luMiB\n",
+        m_nbytes_pcap / KB, m_nbytes_pcap / MB, m_nbytes_original / KB, m_nbytes_original / MB);
+    if (m_nbytes_pcap == m_nbytes_original)
+        printf_verbose("  => all packets in the PCAP have been captured WITHOUT truncation.\n");
+
+    if (duration_sec > 0) {
+        printf_normal("Tcpreplay should replay this PCAP at an average of %.2fMbps / %.2fpps to respect PCAP timings.\n",
+            (float)(8 * m_nbytes_pcap / MB) / duration_sec, (float)m_num_input_pkts / duration_sec);
+    } else {
+        printf_normal("Cannot compute optimal tcpreplay speed for replaying: duration is null or negative.\n");
+        return false;
+    }
+    return true;
+}
+
 bool TimestampPacketProcessor::post_processing(const std::string& /*infile*/, unsigned int totNumPkts)
 {
+    if (m_print_timestamp_analysis)
+        print_timestamp_analysis();
+
     switch (m_proc_mode) {
     case PROCMODE_NONE:
     case PROCMODE_CHANGE_DURATION_RESET_IFG:
