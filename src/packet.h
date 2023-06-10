@@ -34,6 +34,7 @@
 #endif
 
 #include <linux/types.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 

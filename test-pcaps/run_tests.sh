@@ -520,13 +520,13 @@ find_dependencies_or_die
 rm -f /tmp/*.pcap 
 
 test_timing
-#test_tcpdump_filter
-#test_gtpu_filter
-#test_extract_conn_filter
-#test_tcp_filter
-#test_set_duration
-#test_set_duration_preserve_ifg
-#test_set_timestamps
-#test_reporting_traffic_stats
+test_tcpdump_filter
+test_gtpu_filter
+test_extract_conn_filter
+test_tcp_filter
+test_set_duration
+test_set_duration_preserve_ifg
+test_set_timestamps
+test_reporting_traffic_stats
 echo "All tests passed successfully"
 
