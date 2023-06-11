@@ -142,8 +142,14 @@ function test_timing()
     expected_exitcode[4]=2 # we expect a failure in timing analysis
     expected_human_friendly_output_lines[4]=2
 
+    # try to check timing of a PCAP file containing just 1 pkt
+    test_file[5]="ipv4_gtpc_single_pkt.pcap"
+    expected_pps[5]="" # no PPS will be computed
+    expected_duration[5]="0.0"
+    expected_exitcode[5]=0 # a PCAP with just 1 pkt is not an error, just unusual
+    expected_human_friendly_output_lines[5]=2
 
-    for testnum in $(seq 1 4); do
+    for testnum in $(seq 1 5); do
 
         # ---- first test -----
         # check the human-friendly output:

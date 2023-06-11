@@ -262,9 +262,9 @@ bool TimestampPacketProcessor::print_timestamp_analysis() // internal helper fun
         if (g_config.m_quiet)
             printf_quiet("%.6f\n", 0.0f); // be machine-friendly and indicate an error
         else
-            printf_normal("The PCAP contains just 1 packet: duration is zero.\n");
+            printf_normal("The PCAP contains just 1 packet: duration is %.2fsec.\n", 0.0f);
 
-        return false;
+        return true;
     }
 
     if (m_first_pkt_ts_sec <= 0 && m_last_pkt_ts_sec <= 0) {

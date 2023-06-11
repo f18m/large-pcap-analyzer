@@ -39,9 +39,9 @@ Some features of this utility:
 As for most Linux software, you can install the software just running:
 
 ```
-	$ wget https://github.com/f18m/large-pcap-analyzer/archive/3.8.1.tar.gz
-	$ tar xvzf 3.8.1.tar.gz
-	$ cd large-pcap-analyzer-3.8.1/
+	$ wget https://github.com/f18m/large-pcap-analyzer/archive/3.8.2.tar.gz
+	$ tar xvzf 3.8.2.tar.gz
+	$ cd large-pcap-analyzer-3.8.2/
 	$ ./configure && make
 	$ sudo make install
 ```
@@ -59,7 +59,7 @@ For developers: link to [Snapcraft page for large PCAP analyzer](https://build.s
 # Command line help
 
 ```
-	large-pcap-analyzer version 3.8.1, built with libpcap libpcap version 1.9.1 (with TPACKET_V3)
+	large-pcap-analyzer version 3.8.2, built with libpcap libpcap version 1.9.1 (with TPACKET_V3)
 	by Francesco Montorsi, (c) 2014-2023
 	Usage:
 	large-pcap-analyzer [options] somefile.pcap ...
