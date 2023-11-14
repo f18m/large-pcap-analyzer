@@ -41,7 +41,8 @@ You can use one of the following installation options:
 | Link to Install Info | Build Status  | Applies to |
 |:--------------------:|:-------------:|:----------:|
 | [RPM repository](https://copr.fedorainfracloud.org/coprs/f18m/large-pcap-analyzer/) | ![Build status](https://copr.fedorainfracloud.org/coprs/f18m/large-pcap-analyzer/package/large-pcap-analyzer/status_image/last_build.png) | CentOS, RHEL, Fedora, RockyLinux, AlmaLinux, openSUSE Tumbleweed |
-| [Snap](https://snapcraft.io/large-pcap-analyzer) | ![Snap Status](https://build.snapcraft.io/badge/f18m/large-pcap-analyzer.svg) | Arch Linux, Debian, Fedora, Gentoo, Linux Mint, openSUSE, Raspbian, Ubuntu. If you have [snapd](https://docs.snapcraft.io/core/install) installed, just run ```snap install large-pcap-analyzer``` |
+| [Snap](https://snapcraft.io/large-pcap-analyzer) | [![Get it from the Snap Store](https://snapcraft.io/static/images/badges/en/snap-store-black.svg)](https://snapcraft.io/large-pcap-analyzer)
+ | Arch Linux, Debian, Fedora, Gentoo, Linux Mint, openSUSE, Raspbian, Ubuntu, etc. If you have [snapd](https://docs.snapcraft.io/core/install) installed, just run ```snap install large-pcap-analyzer``` |
 
 For developers: link to [Snapcraft page for large PCAP analyzer](https://build.snapcraft.io/user/f18m/large-pcap-analyzer)
 
