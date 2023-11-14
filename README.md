@@ -36,24 +36,25 @@ Some features of this utility:
 
 # How to install
 
-As for most Linux software, you can install the software just running:
+You can use one of the following installation options:
+
+| Link to Install Info | Build Status  | Applies to |
+|:--------------------:|:-------------:|:----------:|
+| [RPM repository](https://copr.fedorainfracloud.org/coprs/f18m/large-pcap-analyzer/) | ![Build status](https://copr.fedorainfracloud.org/coprs/f18m/large-pcap-analyzer/package/large-pcap-analyzer/status_image/last_build.png) | CentOS, RHEL, Fedora, RockyLinux, AlmaLinux, openSUSE Tumbleweed |
+| [Snap](https://snapcraft.io/large-pcap-analyzer) | ![Snap Status](https://build.snapcraft.io/badge/f18m/large-pcap-analyzer.svg) | Arch Linux, Debian, Fedora, Gentoo, Linux Mint, openSUSE, Raspbian, Ubuntu. If you have [snapd](https://docs.snapcraft.io/core/install) installed, just run ```snap install large-pcap-analyzer``` |
+
+For developers: link to [Snapcraft page for large PCAP analyzer](https://build.snapcraft.io/user/f18m/large-pcap-analyzer)
+
+As for most Linux software, you can also install the software by building it from sources:
 
 ```
 	$ wget https://github.com/f18m/large-pcap-analyzer/archive/3.8.2.tar.gz
 	$ tar xvzf 3.8.2.tar.gz
 	$ cd large-pcap-analyzer-3.8.2/
+	$ apt install -y automake libpcap-dev diffutils tcpdump tshark   # or similar command to fetch dependencies
 	$ ./configure && make
 	$ sudo make install
 ```
-
-Or you can use one of the following installation options:
-
-| Build Status  | Applies to |
-|:-------------:|:----------:|
-| [![RPM Repositories](https://copr.fedorainfracloud.org/coprs/f18m/large-pcap-analyzer/package/large-pcap-analyzer/status_image/last_build.png)](https://copr.fedorainfracloud.org/coprs/f18m/large-pcap-analyzer/) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; | CentOS 7,  Fedora 27,  Fedora 28, openSUSE Leap 15.0 and openSUSE Tumbleweed. Click on the badge to reach the page with the RPM repository informations. |
-| [![Snap Status](https://build.snapcraft.io/badge/f18m/large-pcap-analyzer.svg)](https://snapcraft.io/large-pcap-analyzer) | Arch Linux, Debian, Fedora, Gentoo, Linux Mint, openSUSE, Raspbian, Ubuntu. If you have [snapd](https://docs.snapcraft.io/core/install) installed, just run ```snap install large-pcap-analyzer``` |
-
-For developers: link to [Snapcraft page for large PCAP analyzer](https://build.snapcraft.io/user/f18m/large-pcap-analyzer)
 
 
 # Command line help
