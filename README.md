@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.com/f18m/large-pcap-analyzer.svg?branch=master)](https://travis-ci.com/f18m/large-pcap-analyzer)
+[![Build Status](https://github.com/f18m/large-pcap-analyzer/actions/workflows/main.yml/badge.svg)](https://github.com/f18m/large-pcap-analyzer/actions)
 
 # Large PCAP file analyzer
 Large PCAP file analyzer is a command-line utility program that performs some simple operations
