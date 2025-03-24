@@ -5,6 +5,10 @@ on:
     branches: [ master ]
   pull_request:
     branches: [ master ]
+  # add a cron job to run every month -- this project is not very active, at least ensure there's a valid CI build every month
+  # this is also useful to check if something breaks e.g. due to infrastructure changes (e.g. Ubuntu OS)
+  schedule:
+    - cron: '0 0 1 * *'
 
 jobs:
   build_and_test:
@@ -12,7 +16,7 @@ jobs:
 
     steps:
     # install deps
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: install debian-packaged dependencies
       run: sudo apt install -y automake libpcap-dev diffutils tcpdump tshark
 
