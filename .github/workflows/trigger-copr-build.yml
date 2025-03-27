@@ -1,0 +1,37 @@
+name: trigger COPR
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  # add a cron job to run every month -- this project is not very active, at least ensure there's a valid CI build every month
+  # this is also useful to check if something breaks e.g. due to infrastructure changes (e.g. Ubuntu OS)
+  schedule:
+    - cron: '0 0 1 * *'
+  workflow_dispatch:
+
+jobs:
+  copr_build_lpa:
+    runs-on: ubuntu-latest
+
+    steps:
+    # install deps
+    - name: install COPR CLI
+      run: pip3 install copr-cli
+    
+    - name: Setup Copr config file
+      env:
+        # You need to have those secrets in your repo.
+        # See also: https://copr.fedorainfracloud.org/api/.
+        COPR_CONFIG: ${{ secrets.COPR_CONFIG }}
+      run: |
+        mkdir -p ~/.config
+        echo "$COPR_CONFIG" > ~/.config/copr
+
+    - name: Trigger COPR build [collector]
+      run: |
+        copr-cli buildscm \
+          --type git --clone-url https://github.com/f18m/large-pcap-analyzer.git \
+          --spec spec/large-pcap-analyzer.spec --method rpkg --commit ${{ github.head_ref || github.ref_name }} \
+          large-pcap-analyzer
