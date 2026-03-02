@@ -1,0 +1,25 @@
+id: org.flatpak.lpa
+runtime: org.freedesktop.Platform
+runtime-version: '23.08'
+sdk: org.freedesktop.Sdk
+command: large_pcap_analyzer
+modules:
+  - name: libpcap
+    buildsystem: autotools
+    make-install-args:
+      - PREFIX=/app
+    sources:
+      - type: git
+        url: https://github.com/the-tcpdump-group/libpcap.git
+        commit: bbcbc9174df3298a854daee2b3e666a4b6e5383a
+        tag: libpcap-1.10.5
+
+  - name: large_pcap_analyzer
+    buildsystem: autotools
+    make-install-args:
+      - PREFIX=/app
+    sources:
+      - type: git
+        url: https://github.com/f18m/large-pcap-analyzer.git
+        commit: 9dd3e049176ad8cc483c17946b42aaac904946a0
+        tag: 3.8.2

@@ -48,9 +48,9 @@ For developers: link to [Snapcraft page for large PCAP analyzer](https://build.s
 As for most Linux software, you can also install the software by building it from sources:
 
 ```
-	$ wget https://github.com/f18m/large-pcap-analyzer/archive/3.8.2.tar.gz
-	$ tar xvzf 3.8.2.tar.gz
-	$ cd large-pcap-analyzer-3.8.2/
+	$ wget https://github.com/f18m/large-pcap-analyzer/archive/3.8.3.tar.gz
+	$ tar xvzf 3.8.3.tar.gz
+	$ cd large-pcap-analyzer-3.8.3/
 	$ apt install -y automake libpcap-dev diffutils tcpdump tshark   # or similar command to fetch dependencies
 	$ ./configure && make
 	$ sudo make install
@@ -60,7 +60,7 @@ As for most Linux software, you can also install the software by building it fro
 # Command line help
 
 ```
-	large-pcap-analyzer version 3.8.2, built with libpcap libpcap version 1.9.1 (with TPACKET_V3)
+	large-pcap-analyzer version 3.8.3, built with libpcap libpcap version 1.9.1 (with TPACKET_V3)
 	by Francesco Montorsi, (c) 2014-2023
 	Usage:
 	large-pcap-analyzer [options] somefile.pcap ...
@@ -395,6 +395,7 @@ flow_num,num_pkts,%pkts,num_bytes,%bytes,flow_hash,ip_src,ip_dst,ip_proto,port_s
 9,56,0.31,17508,0.11,54FD688F6BAAAF89,10.85.73.237,65.52.108.154,6,49453,443
 Completed generation of 10 lines of traffic report.
 ```
+
 
 From such output it's clear that the TCP connection (ip_proto=6) between IPs 10.85.73.237 and 202.122.145.141
 on TCP ports 49789 and 443 (default HTTPs ports) is the connection which transported the highest number of 

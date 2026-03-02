@@ -111,7 +111,7 @@ static struct option g_long_options[] = {
 static void print_help()
 {
     printf("%s version %s, built with libpcap %s\n", PACKAGE_NAME, PACKAGE_VERSION, pcap_lib_version());
-    printf("by Francesco Montorsi, (c) 2014-2023\n");
+    printf("by Francesco Montorsi, (c) 2014-2026\n");
     printf("Usage:\n");
     printf("  %s [options] somefile.pcap ...\n", PACKAGE_NAME);
     printf("Miscellaneous options:\n");
