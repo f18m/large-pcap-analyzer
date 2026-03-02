@@ -16,3 +16,6 @@ latest
 parts/
 prime/
 snap/.snapcraft/
+
+.flatpak-builder/
+repo/

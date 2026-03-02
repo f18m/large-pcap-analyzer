@@ -225,7 +225,7 @@ static bool process_pcap_handle(
     unsigned long* nloadedOUT,
     unsigned long* nmatchingOUT)
 {
-    unsigned long nloaded = 0, nmatching = 0, ngtpu = 0;
+    unsigned long nloaded = 0, nmatching = 0;
     struct timeval start, stop;
     ParsingStats parsing_stats;
 
@@ -280,8 +280,8 @@ static bool process_pcap_handle(
 
             nmatching++;
         }
-        if (is_gtpu)
-            ngtpu++;
+        //if (is_gtpu)
+        //    ngtpu++;
 
         if (g_config.m_parsing_stats) {
             update_parsing_stats(pkt, parsing_stats);
