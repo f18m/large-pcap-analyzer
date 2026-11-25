@@ -16,7 +16,7 @@ jobs:
 
     steps:
     # install deps
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - name: install debian-packaged dependencies
       run: sudo apt install -y automake libpcap-dev diffutils tcpdump tshark
 
